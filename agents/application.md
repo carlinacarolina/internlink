@@ -119,6 +119,11 @@ Application details displayed as:
 * Submitted At  
 * Notes  
 
+### PDF Utilities
+* Detail page provides a `Download PDF` button that performs a direct file download via `/applications/{id}/pdf/print`.
+* The printable layout is generated from the shared Tailwind template used by both the inline PDF endpoint and the download, ensuring visual parity.
+* Access `/applications/{id}/pdf` to inspect the generated PDF in the browser viewer.
+
 ---
 
 ## Update – `/applications/[id]/update/`

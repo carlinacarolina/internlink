@@ -7,6 +7,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Spatie\Browsershot\Browsershot;
 
 class ApplicationController extends Controller
 {
@@ -69,6 +70,19 @@ class ApplicationController extends Controller
                     ->all();
             })
             ->all();
+    }
+
+    private function resolvePrintableApplication(int $id)
+    {
+        $application = DB::table('application_details_view')->where('id', $id)->first();
+        abort_if(!$application, 404);
+
+        $studentId = $this->currentStudentId();
+        if (session('role') === 'student' && $application->student_id !== $studentId) {
+            abort(401);
+        }
+
+        return $application;
     }
 
     public function index(Request $request)
@@ -344,17 +358,67 @@ class ApplicationController extends Controller
 
     public function show(int $id)
     {
-        $application = DB::table('application_details_view')->where('id', $id)->first();
-        abort_if(!$application, 404);
-
-        $studentId = $this->currentStudentId();
-        if (session('role') === 'student' && $application->student_id !== $studentId) {
-            abort(401);
-        }
+        $application = $this->resolvePrintableApplication($id);
 
         return view('application.show', [
             'application' => $application,
         ]);
+    }
+
+    public function pdf(int $id)
+    {
+        $application = $this->resolvePrintableApplication($id);
+        $generatedAt = now();
+
+        $html = $this->renderPdfHtml($application, $generatedAt);
+        $pdfBinary = $this->generatePdfBinary($html);
+        $fileName = $this->pdfFileName($application);
+
+        return response($pdfBinary, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $fileName . '"',
+        ]);
+    }
+
+    public function pdfPrint(int $id)
+    {
+        $application = $this->resolvePrintableApplication($id);
+        $generatedAt = now();
+
+        $html = $this->renderPdfHtml($application, $generatedAt);
+        $pdfBinary = $this->generatePdfBinary($html);
+        $fileName = $this->pdfFileName($application);
+
+        return response($pdfBinary, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
+        ]);
+    }
+
+    private function renderPdfHtml(object $application, $generatedAt): string
+    {
+        return view('application.pdf', [
+            'application' => $application,
+            'generatedAt' => $generatedAt,
+        ])->render();
+    }
+
+    private function generatePdfBinary(string $html): string
+    {
+        return Browsershot::html($html)
+            ->format('A4')
+            ->margins(20, 16, 20, 16)
+            ->showBackground()
+            ->waitUntilNetworkIdle()
+            ->setOption('args', ['--no-sandbox', '--disable-setuid-sandbox'])
+            ->pdf();
+    }
+
+    private function pdfFileName(object $application): string
+    {
+        $safeName = preg_replace('/[^A-Za-z0-9-_]+/', '_', (string) ($application->student_name ?? 'student'));
+
+        return sprintf('application_%s.pdf', strtolower(trim($safeName, '_')) ?: 'student');
     }
 
     public function edit(int $id)

@@ -90,6 +90,7 @@
 
 <div class="d-flex justify-content-end gap-2">
     <a href="/applications" class="btn btn-outline-secondary">Back</a>
+    <a href="/applications/{{ $application->id }}/pdf/print" class="btn btn-primary">Download PDF</a>
     <a href="/applications/{{ $application->id }}/update" class="btn btn-warning">Update</a>
 </div>
 @endsection

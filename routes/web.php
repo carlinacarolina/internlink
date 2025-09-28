@@ -26,6 +26,8 @@ Route::middleware('auth.session')->group(function () {
         Route::get('/create', [ApplicationController::class, 'create']);
         Route::post('/', [ApplicationController::class, 'store']);
         Route::get('{id}/read', [ApplicationController::class, 'show']);
+        Route::get('{id}/pdf', [ApplicationController::class, 'pdf']);
+        Route::get('{id}/pdf/print', [ApplicationController::class, 'pdfPrint']);
         Route::get('{id}/update', [ApplicationController::class, 'edit']);
         Route::put('{id}', [ApplicationController::class, 'update']);
         Route::delete('{id}', [ApplicationController::class, 'destroy']);
