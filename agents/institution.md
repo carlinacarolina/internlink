@@ -14,7 +14,7 @@ CRUD Institution is used to perform operations on the **institution** table, **i
 
 ---
 
-## List – `/institutions/`
+## List – `/{school_code}/institutions/`
 
 1. Page title: **Institutions**.  
 
@@ -65,7 +65,7 @@ Notes: Anticipate if the table width exceeds the screen width due to its content
 
 ---
 
-## Create – `/institutions/create/`
+## Create – `/{school_code}/institutions/create/`
 
 1. Page title: **Create Institution**.  
 
@@ -100,7 +100,7 @@ Notes: Anticipate if the table width exceeds the screen width due to its content
 
 ---
 
-## Read – `/institutions/[id]/read/`
+## Read – `/{school_code}/institutions/[id]/read/`
 
 Institution details are displayed as:  
 * Photo: {value}  
@@ -122,7 +122,7 @@ Institution details are displayed as:
 * Used {value}
 ---
 
-## Update – `/institutions/[id]/update/`
+## Update – `/{school_code}/institutions/[id]/update/`
 
 1. Page title: **Update Institution**.  
 
@@ -160,6 +160,28 @@ Institution details are displayed as:
 
 ## Delete
 
-Delete records using the **Delete** button in the table at the `/institutions/` endpoint.  
+Delete records using the **Delete** button in the table at the `/{school_code}/institutions/` endpoint.  
+
+---
+
+## Validation Summary
+
+- Institution `name` is required and must be unique within the school (`uq_institutions_school_name`).  
+- `industry` is required; `address`, `city`, `province`, `website`, `notes`, and `photo` remain optional text fields (photo capped at 255 characters).  
+- Each primary contact entry requires `name`; `email` is optional but if present it must be unique per institution (`institution_id`, `email`).  
+- Quota creation requires selecting a valid period; `quota` must be an integer ≥ 0 and each `(institution, period)` pair can exist only once.  
+- When defining a new period inline, enforce `year` between 2000–2100 and `term` between 1–4 (see `app.periods` checks).  
+- All institution-related records must stay scoped to the active school (`school_id` enforced by foreign keys and application routing).
+
+---
+
+## Database Notes
+
+- Institutions live in `app.institutions` with a mandatory `school_id` referencing `app.schools(id)` after the realm migration (`0001_01_01_000001_create_my_desain.php`, `2024_08_20_000001_add_school_scope.php`).  
+- Unique index `uq_institutions_school_name` preserves per-school uniqueness for institution names (`2024_08_20_000001_add_school_scope.php`).  
+- Contacts are stored in `app.institution_contacts`; the FK to `app.institutions(id)` cascades deletes, and a unique constraint on `(institution_id, email)` prevents duplicate contact emails (`0001_01_01_000001_create_my_desain.php`).  
+- Quotas reside in `app.institution_quotas` with foreign keys to `app.institutions`, `app.periods`, and `app.schools`; trigger `app.validate_quota_not_over()` prevents `used` from exceeding `quota` (`0001_01_01_000001_create_my_desain.php`, `2024_08_20_000001_add_school_scope.php`).  
+- Period metadata lives in `app.periods`, now school-scoped via `fk_periods_school` and the unique index `uq_periods_school_year_term` (`2024_08_20_000001_add_school_scope.php`).  
+- `institution_details_view` denormalises institution, contact, and latest quota data per school for read endpoints (`2024_08_21_000000_refresh_views_for_school_scope.php`).
 
 ---

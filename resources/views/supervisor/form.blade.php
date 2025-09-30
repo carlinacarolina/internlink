@@ -38,6 +38,6 @@
         <label class="form-label">Photo</label>
         <input type="text" name="photo" class="form-control" value="{{ old('photo', optional($supervisor)->photo) }}">
     </div>
-    <a href="/supervisors" class="btn btn-secondary">Cancel</a>
+    <a href="{{ $schoolRoute('supervisors') }}" class="btn btn-secondary">Cancel</a>
     <button type="submit" class="btn btn-primary">Save</button>
 </form>

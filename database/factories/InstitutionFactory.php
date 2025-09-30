@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Institution;
+use App\Models\School;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -19,6 +20,7 @@ class InstitutionFactory extends Factory
     public function definition(): array
     {
         return [
+            'school_id' => School::factory(),
             'name' => $this->faker->company(),
             'address' => $this->faker->streetAddress(),
             'city' => $this->faker->city(),

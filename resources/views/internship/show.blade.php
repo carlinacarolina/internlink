@@ -105,10 +105,10 @@
 </div>
 
 <div class="d-flex justify-content-end gap-2">
-    <a href="/internships" class="btn btn-outline-secondary">Back</a>
+    <a href="{{ $schoolRoute('internships') }}" class="btn btn-outline-secondary">Back</a>
     @if(!$isStudent)
-        <a href="/internships/{{ $internship->id }}/update" class="btn btn-warning">Update</a>
-        <form action="/internships/{{ $internship->id }}" method="POST" class="d-inline">
+        <a href="{{ $schoolRoute('internships/' . $internship->id . '/update') }}" class="btn btn-warning">Update</a>
+        <form action="{{ $schoolRoute('internships/' . $internship->id) }}" method="POST" class="d-inline">
             @csrf
             @method('DELETE')
             <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this internship?');">Delete</button>

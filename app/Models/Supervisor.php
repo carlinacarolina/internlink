@@ -11,6 +11,7 @@ class Supervisor extends Model
 
     protected $fillable = [
         'user_id',
+        'school_id',
         'supervisor_number',
         'department',
         'notes',
@@ -20,5 +21,10 @@ class Supervisor extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function school()
+    {
+        return $this->belongsTo(School::class);
     }
 }

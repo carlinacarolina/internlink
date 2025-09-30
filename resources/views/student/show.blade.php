@@ -59,9 +59,9 @@
     </div>
 </div>
 <div class="mt-4 d-flex flex-wrap gap-2">
-    <a href="/students" class="btn btn-secondary">Back</a>
-    <a href="/students/{{ $student->id }}/update" class="btn btn-warning">Update</a>
-    <form action="/students/{{ $student->id }}" method="POST" class="d-inline">
+    <a href="{{ $schoolRoute('students') }}" class="btn btn-secondary">Back</a>
+    <a href="{{ $schoolRoute('students/' . $student->id . '/update') }}" class="btn btn-warning">Update</a>
+    <form action="{{ $schoolRoute('students/' . $student->id) }}" method="POST" class="d-inline">
         @csrf
         @method('DELETE')
         <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this student?');">Delete</button>

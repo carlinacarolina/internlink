@@ -5,7 +5,7 @@
 @section('content')
 <h1 class="mb-4">Create Application</h1>
 
-<form action="/applications" method="POST" class="card">
+<form action="{{ $schoolRoute('applications') }}" method="POST" class="card">
     @csrf
     <div class="card-body d-flex flex-column gap-3">
         @include('components.form-errors')
@@ -115,7 +115,7 @@
         </div>
     </div>
     <div class="card-footer d-flex justify-content-end gap-2">
-        <a href="{{ url('/applications') }}" class="btn btn-outline-secondary">Cancel</a>
+        <a href="{{ $schoolRoute('applications') }}" class="btn btn-outline-secondary">Cancel</a>
         <button type="submit" class="btn btn-primary">Save</button>
     </div>
 </form>

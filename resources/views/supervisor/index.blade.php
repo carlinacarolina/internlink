@@ -25,7 +25,7 @@
             @endif
         </button>
         @if(in_array($role, ['admin', 'developer'], true))
-            <a href="/supervisors/create" class="btn btn-primary">Create Supervisor</a>
+            <a href="{{ $schoolRoute('supervisors/create') }}" class="btn btn-primary">Create Supervisor</a>
         @endif
     </div>
 </div>
@@ -61,7 +61,7 @@
                     <td>{{ $supervisor->phone ?? '—' }}</td>
                     <td>{{ $supervisor->department ?? '—' }}</td>
                     <td class="text-nowrap">
-                        <a href="/supervisors/{{ $supervisor->id }}/read" class="btn btn-sm btn-outline-secondary">Read</a>
+                        <a href="{{ $schoolRoute('supervisors/' . $supervisor->id . '/read') }}" class="btn btn-sm btn-outline-secondary">Read</a>
                         @if($isSupervisor && $supervisor->id !== $currentSupervisorId)
                             <button class="btn btn-sm btn-warning" disabled>Update</button>
                             <button class="btn btn-sm btn-danger" disabled>Delete</button>
@@ -69,8 +69,8 @@
                             <button class="btn btn-sm btn-warning" disabled>Update</button>
                             <button class="btn btn-sm btn-danger" disabled>Delete</button>
                         @else
-                            <a href="/supervisors/{{ $supervisor->id }}/update" class="btn btn-sm btn-warning">Update</a>
-                            <form action="/supervisors/{{ $supervisor->id }}" method="POST" class="d-inline">
+                            <a href="{{ $schoolRoute('supervisors/' . $supervisor->id . '/update') }}" class="btn btn-sm btn-warning">Update</a>
+                            <form action="{{ $schoolRoute('supervisors/' . $supervisor->id) }}" method="POST" class="d-inline">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this supervisor?')">Delete</button>

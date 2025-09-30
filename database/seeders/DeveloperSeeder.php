@@ -17,6 +17,7 @@ class DeveloperSeeder extends Seeder
                 'phone' => '0800000002',
                 'password' => Hash::make('password'),
                 'role' => 'developer',
+                'school_id' => null,
             ]
         );
     }

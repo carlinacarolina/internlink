@@ -27,5 +27,5 @@
         </dd>
     </dl>
 </div>
-<a href="/admins" class="btn btn-secondary">Back</a>
+<a href="{{ $schoolRoute('admins') }}" class="btn btn-secondary">Back</a>
 @endsection

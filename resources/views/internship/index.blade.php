@@ -29,7 +29,7 @@
         @if($isStudent)
             <button class="btn btn-primary" disabled>Create Internship</button>
         @else
-            <a href="/internships/create" class="btn btn-primary">Create Internship</a>
+            <a href="{{ $schoolRoute('internships/create') }}" class="btn btn-primary">Create Internship</a>
         @endif
     </div>
 </div>
@@ -71,13 +71,13 @@
                 <td>{{ $internship->end_date }}</td>
                 <td>{{ ucwords(str_replace('_', ' ', $internship->status)) }}</td>
                 <td class="text-nowrap">
-                    <a href="/internships/{{ $internship->id }}/read" class="btn btn-sm btn-outline-secondary">Read</a>
+                    <a href="{{ $schoolRoute('internships/' . $internship->id . '/read') }}" class="btn btn-sm btn-outline-secondary">Read</a>
                     @if($isStudent)
                         <button class="btn btn-sm btn-warning" disabled>Update</button>
                         <button class="btn btn-sm btn-danger" disabled>Delete</button>
                     @else
-                        <a href="/internships/{{ $internship->id }}/update" class="btn btn-sm btn-warning">Update</a>
-                        <form action="/internships/{{ $internship->id }}" method="POST" class="d-inline">
+                        <a href="{{ $schoolRoute('internships/' . $internship->id . '/update') }}" class="btn btn-sm btn-warning">Update</a>
+                        <form action="{{ $schoolRoute('internships/' . $internship->id) }}" method="POST" class="d-inline">
                             @csrf
                             @method('DELETE')
                             <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this internship?');">Delete</button>

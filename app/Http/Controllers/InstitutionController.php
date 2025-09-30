@@ -8,6 +8,7 @@ use App\Models\InstitutionQuota;
 use App\Models\Period;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class InstitutionController extends Controller
 {
@@ -47,9 +48,10 @@ class InstitutionController extends Controller
         return [$cities, $provinces];
     }
 
-    protected function loadIndustries(): array
+    protected function loadIndustries(int $schoolId): array
     {
         return DB::table('institutions')
+            ->where('school_id', $schoolId)
             ->whereNotNull('industry')
             ->where('industry', '<>', '')
             ->distinct()
@@ -60,6 +62,9 @@ class InstitutionController extends Controller
 
     public function index(Request $request)
     {
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
+
         $query = DB::table('institution_details_view as iv')
             ->join('institutions as i', 'i.id', '=', 'iv.id')
             ->select([
@@ -83,14 +88,21 @@ class InstitutionController extends Controller
                 'iv.used',
                 'i.created_at',
                 'i.updated_at',
-            ]);
+            ])
+            ->where('iv.school_id', $schoolId);
 
         if (session('role') === 'student') {
             $studentId = $this->currentStudentId();
-            $query->whereIn('iv.id', function ($q) use ($studentId) {
-                $q->select('institution_id')->from('applications')->where('student_id', $studentId)
+            $query->whereIn('iv.id', function ($q) use ($studentId, $schoolId) {
+                $q->select('institution_id')
+                    ->from('applications')
+                    ->where('student_id', $studentId)
+                    ->where('school_id', $schoolId)
                     ->union(
-                        DB::table('internships')->select('institution_id')->where('student_id', $studentId)
+                        DB::table('internships')
+                            ->select('institution_id')
+                            ->where('student_id', $studentId)
+                            ->where('school_id', $schoolId)
                     );
             });
         }
@@ -204,7 +216,7 @@ class InstitutionController extends Controller
         $institutions = $query->paginate(10)->withQueryString();
 
         [$cities, $provinces] = $this->loadRegions();
-        $industries = $this->loadIndustries();
+        $industries = $this->loadIndustries($schoolId);
 
         return view('institution.index', [
             'institutions' => $institutions,
@@ -215,14 +227,28 @@ class InstitutionController extends Controller
         ]);
     }
 
-    public function show($id)
+    public function show($school, $id)
     {
-        $institution = DB::table('institution_details_view')->where('id', $id)->first();
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
+
+        $institution = DB::table('institution_details_view')
+            ->where('id', $id)
+            ->where('school_id', $schoolId)
+            ->first();
         abort_if(!$institution, 404);
         if (session('role') === 'student') {
             $studentId = $this->currentStudentId();
-            $related = DB::table('applications')->where('student_id', $studentId)->where('institution_id', $id)->exists() ||
-                DB::table('internships')->where('student_id', $studentId)->where('institution_id', $id)->exists();
+            $related = DB::table('applications')
+                    ->where('student_id', $studentId)
+                    ->where('institution_id', $id)
+                    ->where('school_id', $schoolId)
+                    ->exists()
+                || DB::table('internships')
+                    ->where('student_id', $studentId)
+                    ->where('institution_id', $id)
+                    ->where('school_id', $schoolId)
+                    ->exists();
             if (!$related) {
                 abort(401);
             }
@@ -235,9 +261,11 @@ class InstitutionController extends Controller
         if (session('role') === 'student') {
             abort(401);
         }
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
         [$cities, $provinces] = $this->loadRegions();
-        $periods = Period::orderByDesc('year')->orderByDesc('term')->get();
-        $industries = $this->loadIndustries();
+        $periods = Period::where('school_id', $schoolId)->orderByDesc('year')->orderByDesc('term')->get();
+        $industries = $this->loadIndustries($schoolId);
         return view('institution.create', compact('cities', 'provinces', 'periods', 'industries'));
     }
 
@@ -246,8 +274,15 @@ class InstitutionController extends Controller
         if (session('role') === 'student') {
             abort(401);
         }
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 400, 'School context required.');
         $data = $request->validate([
-            'name' => 'required|string|max:150|unique:institutions,name',
+            'name' => [
+                'required',
+                'string',
+                'max:150',
+                Rule::unique('institutions', 'name')->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
             'address' => 'nullable|string',
             'city' => 'required|string',
             'province' => 'required|string',
@@ -266,14 +301,18 @@ class InstitutionController extends Controller
             'quota' => 'required|integer|min:0',
         ]);
 
-        if ($data['period_selection'] !== 'create_new' && !Period::whereKey($data['period_selection'])->exists()) {
+        if (
+            $data['period_selection'] !== 'create_new'
+            && !Period::where('school_id', $schoolId)->whereKey($data['period_selection'])->exists()
+        ) {
             return back()->withErrors(['period_selection' => 'Selected period is invalid.'])->withInput();
         }
 
         $contactPrimary = ($data['contact_primary'] ?? '') === 'true';
 
-        DB::transaction(function () use ($data, $contactPrimary) {
+        DB::transaction(function () use ($data, $contactPrimary, $schoolId) {
             $institution = Institution::create([
+                'school_id' => $schoolId,
                 'name' => $data['name'],
                 'address' => $data['address'] ?? null,
                 'city' => $data['city'],
@@ -295,11 +334,13 @@ class InstitutionController extends Controller
 
             $period = $this->resolvePeriod(
                 $data['period_selection'],
+                $schoolId,
                 $data['new_period_year'] ?? null,
                 $data['new_period_term'] ?? null
             );
 
             InstitutionQuota::create([
+                'school_id' => $schoolId,
                 'institution_id' => $institution->id,
                 'period_id' => $period->id,
                 'quota' => $data['quota'],
@@ -307,17 +348,24 @@ class InstitutionController extends Controller
             ]);
         });
 
-        return redirect('/institutions');
+        return redirect($this->schoolRoute('institutions'))->with('status', 'Institution created.');
     }
 
-    public function edit($id)
+    public function edit($school, $id)
     {
         if (session('role') === 'student') {
             abort(401);
         }
-        $inst = Institution::findOrFail($id);
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
+
+        $inst = Institution::where('school_id', $schoolId)->findOrFail($id);
         $contact = $inst->contacts()->orderByDesc('is_primary')->first();
-        $quota = $inst->quotas()->with('period')->orderByDesc('period_id')->first();
+        $quota = $inst->quotas()
+            ->where('school_id', $schoolId)
+            ->with('period')
+            ->orderByDesc('period_id')
+            ->first();
         $institution = (object) [
             'id' => $inst->id,
             'name' => $inst->name,
@@ -339,17 +387,20 @@ class InstitutionController extends Controller
             'quota' => $quota->quota ?? null,
         ];
         [$cities, $provinces] = $this->loadRegions();
-        $periods = Period::orderByDesc('year')->orderByDesc('term')->get();
-        $industries = $this->loadIndustries();
+        $periods = Period::where('school_id', $schoolId)->orderByDesc('year')->orderByDesc('term')->get();
+        $industries = $this->loadIndustries($schoolId);
         return view('institution.edit', compact('institution', 'cities', 'provinces', 'periods', 'industries'));
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, $school, $id)
     {
         if (session('role') === 'student') {
             abort(401);
         }
-        $institution = Institution::findOrFail($id);
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
+
+        $institution = Institution::where('school_id', $schoolId)->findOrFail($id);
         $data = $request->validate([
             'address' => 'nullable|string',
             'city' => 'required|string',
@@ -369,13 +420,16 @@ class InstitutionController extends Controller
             'quota' => 'required|integer|min:0',
         ]);
 
-        if ($data['period_selection'] !== 'create_new' && !Period::whereKey($data['period_selection'])->exists()) {
+        if (
+            $data['period_selection'] !== 'create_new'
+            && !Period::where('school_id', $schoolId)->whereKey($data['period_selection'])->exists()
+        ) {
             return back()->withErrors(['period_selection' => 'Selected period is invalid.'])->withInput();
         }
 
         $contactPrimary = ($data['contact_primary'] ?? '') === 'true';
 
-        DB::transaction(function () use ($data, $institution, $contactPrimary) {
+        DB::transaction(function () use ($data, $institution, $contactPrimary, $schoolId) {
             $institution->update([
                 'address' => $data['address'] ?? null,
                 'city' => $data['city'],
@@ -403,6 +457,7 @@ class InstitutionController extends Controller
 
             $period = $this->resolvePeriod(
                 $data['period_selection'],
+                $schoolId,
                 $data['new_period_year'] ?? null,
                 $data['new_period_term'] ?? null
             );
@@ -410,6 +465,7 @@ class InstitutionController extends Controller
             $quota = InstitutionQuota::firstOrNew([
                 'institution_id' => $institution->id,
                 'period_id' => $period->id,
+                'school_id' => $schoolId,
             ]);
 
             $quota->quota = $data['quota'];
@@ -419,28 +475,31 @@ class InstitutionController extends Controller
             $quota->save();
         });
 
-        return redirect('/institutions');
+        return redirect($this->schoolRoute('institutions'))->with('status', 'Institution updated.');
     }
 
-    private function resolvePeriod(string $selection, ?int $newYear, ?int $newTerm): Period
+    private function resolvePeriod(string $selection, int $schoolId, ?int $newYear, ?int $newTerm): Period
     {
         if ($selection === 'create_new') {
             return Period::firstOrCreate([
+                'school_id' => $schoolId,
                 'year' => $newYear,
                 'term' => $newTerm,
             ]);
         }
 
-        return Period::findOrFail((int) $selection);
+        return Period::where('school_id', $schoolId)->findOrFail((int) $selection);
     }
 
-    public function destroy($id)
+    public function destroy($school, $id)
     {
         if (session('role') === 'student') {
             abort(401);
         }
-        $institution = Institution::findOrFail($id);
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
+        $institution = Institution::where('school_id', $schoolId)->findOrFail($id);
         $institution->delete();
-        return redirect('/institutions');
+        return redirect($this->schoolRoute('institutions'))->with('status', 'Institution deleted.');
     }
 }

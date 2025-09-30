@@ -5,7 +5,7 @@
 @section('content')
 <h1 class="mb-4">Update Application</h1>
 
-<form action="/applications/{{ $application->id }}" method="POST" class="card">
+<form action="{{ $schoolRoute('applications/' . $application->id) }}" method="POST" class="card">
     @csrf
     @method('PUT')
     <div class="card-body d-flex flex-column gap-3">
@@ -102,7 +102,7 @@
         </div>
     </div>
     <div class="card-footer d-flex justify-content-end gap-2">
-        <a href="/applications/{{ $application->id }}/read" class="btn btn-outline-secondary">Cancel</a>
+        <a href="{{ $schoolRoute('applications/' . $application->id . '/read') }}" class="btn btn-outline-secondary">Cancel</a>
         <button type="submit" class="btn btn-primary">Save</button>
     </div>
 </form>

@@ -5,7 +5,7 @@
 @section('content')
 <h1 class="mb-4">Create Monitoring</h1>
 @include('monitoring.form', [
-    'action' => url('/monitorings'),
+    'action' => $schoolRoute('monitorings'),
     'method' => 'POST',
     'log' => null,
     'internships' => $internships,

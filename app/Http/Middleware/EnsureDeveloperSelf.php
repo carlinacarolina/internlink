@@ -13,7 +13,7 @@ class EnsureDeveloperSelf
         if (session('role') === 'developer') {
             $routeId = (int) $request->route('id');
             if ($routeId !== (int) session('user_id')) {
-                abort(401, 'Akses ditolak.');
+                abort(403, 'Access denied.');
             }
         }
         return $next($request);

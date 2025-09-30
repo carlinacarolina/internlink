@@ -4,12 +4,23 @@ This document serves as the basic key for Agents to understand what I, as the us
 
 I repeat: **“This document is not an instruction manual, but a reference for relevance. Instructions are only given through prompts.”**
 
+Update/refresh the AGENTS.md and agents/{type} documents if you have made changes, such as adding new features.
+
 **InternLink** is an application designed to help teachers manage their students’ internship activities in industry. It is intended for schools that require internships as part of the graduation requirements.
 
 The InternLink application fully relies on AI Agents. You have full control, but:
 
 * Do not add anything that is not requested in the prompt or in specific AGENTS files.
 * Do not be overly “initiative” beyond the given instructions.
+
+### School Realm Routing
+
+Most operational dashboards now live under a school-specific realm. After login, non-developer roles are redirected to their assigned realm at `/{school_code}/…`. Developers can enter any realm via the **Realm** button on the Schools list. Within a realm:
+
+* URLs for CRUD modules follow the pattern `/{school_code}/{resource}` (e.g. `/{school_code}/students`, `/{school_code}/applications`).
+* The `{school_code}` segment is the unique code from `app.schools.code` (e.g. `ALPHAVOC`, `BETATECH`) and is always used in realm URLs—not the numeric school ID.
+* `schoolRoute()` helpers ensure links and forms stay inside the active realm. Always use them when building URLs inside school views.
+* Developers retain the global `/schools` and `/developers` areas outside of any realm. Non-developers are blocked from `/schools`.
 
 ---
 
@@ -21,6 +32,10 @@ The InternLink application fully relies on AI Agents. You have full control, but
 2. Login
 3. Logout
 4. Security
+
+> Registration requires a valid `school_code` so that non-developer accounts land in the correct realm. Once registered, login automatically uses the linked school without asking for the code again. The code is available from the Schools list and aligns with the new `code` column introduced on the `schools` table.
+
+See `agents/auth.md` for detailed guidance on these flows.
 
 **Users**
 
@@ -49,6 +64,8 @@ Check the files in the **Agents** folder for full details on each CRUD. This fol
 * Delete flow (may require Role).
 * Detailed access rights by Role.
 * Other supporting information.
+
+> When reviewing these specs, remember to apply the realm prefix (`/{school_code}/…`) unless a document explicitly states that the route stays global.
 
 ---
 

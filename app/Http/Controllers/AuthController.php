@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\School;
 use App\Models\Student;
 use App\Models\Supervisor;
 use App\Models\User;
@@ -21,11 +22,29 @@ class AuthController extends Controller
             if ($step === 1) {
                 $validated = $request->validate([
                     'name' => 'required|string',
-                    'email' => 'required|email|unique:users,email',
+                    'email' => 'required|email',
                     'password' => 'required|min:8',
                     'phone' => 'required|numeric',
                     'role' => 'required|in:student,supervisor',
+                    'school_code' => 'required|string',
                 ]);
+
+                $school = School::whereRaw('LOWER(code) = ?', [strtolower(trim($validated['school_code']))])->first();
+                if (!$school) {
+                    return back()->withErrors(['school_code' => 'Invalid school code.'])->withInput();
+                }
+
+                $emailExists = User::where('email', $validated['email'])
+                    ->where('school_id', $school->id)
+                    ->exists();
+
+                if ($emailExists) {
+                    return back()->withErrors(['email' => 'Email already registered for this school.'])->withInput();
+                }
+
+                $validated['school_id'] = $school->id;
+                $validated['school_code'] = $school->code;
+                $validated['school_name'] = $school->name;
 
                 session([
                     'register.step' => 2,
@@ -74,11 +93,13 @@ class AuthController extends Controller
                 'password' => $data['password'],
                 'phone' => $data['phone'],
                 'role' => $data['role'],
+                'school_id' => $data['school_id'],
             ]);
 
             if ($data['role'] === 'student') {
                 Student::create([
                     'user_id' => $user->id,
+                    'school_id' => $data['school_id'],
                     'student_number' => $validated['student_number'],
                     'national_sn' => $validated['national_sn'],
                     'major' => $validated['major'],
@@ -88,6 +109,7 @@ class AuthController extends Controller
             } else {
                 Supervisor::create([
                     'user_id' => $user->id,
+                    'school_id' => $data['school_id'],
                     'supervisor_number' => $validated['supervisor_number'],
                     'department' => $validated['department'],
                     'photo' => $validated['photo'],
@@ -98,12 +120,19 @@ class AuthController extends Controller
             session([
                 'user_id' => $user->id,
                 'role' => $user->role,
+                'school_id' => $user->school_id,
+                'school_code' => $data['school_code'] ?? null,
             ]);
 
             return redirect('/');
         }
 
-        return view('auth.register', ['step' => $step, 'data' => $data, 'extra' => $extra]);
+        return view('auth.register', [
+            'step' => $step,
+            'data' => $data,
+            'extra' => $extra,
+            'schoolName' => $data['school_name'] ?? null,
+        ]);
     }
 
     public function login(Request $request)
@@ -117,9 +146,27 @@ class AuthController extends Controller
             $user = User::where('email', $credentials['email'])->first();
 
             if ($user && Hash::check($credentials['password'], $user->password)) {
+                $schoolId = null;
+                $schoolCodeSession = null;
+
+                if ($user->role !== 'developer') {
+                    $school = $user->school;
+
+                    if (!$school) {
+                        return back()->withErrors([
+                            'email' => 'Account not linked to a school. Contact your administrator.',
+                        ])->onlyInput('email');
+                    }
+
+                    $schoolId = $school->id;
+                    $schoolCodeSession = $school->code;
+                }
+
                 session([
                     'user_id' => $user->id,
                     'role' => $user->role,
+                    'school_id' => $schoolId,
+                    'school_code' => $schoolCodeSession,
                 ]);
                 $request->session()->regenerate();
                 return redirect('/');

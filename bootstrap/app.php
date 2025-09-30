@@ -20,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'student.self' => \App\Http\Middleware\EnsureStudentSelf::class,
             'developer' => \App\Http\Middleware\EnsureDeveloper::class,
             'developer.self' => \App\Http\Middleware\EnsureDeveloperSelf::class,
+            'school' => \App\Http\Middleware\CurrentSchool::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

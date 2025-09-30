@@ -4,5 +4,5 @@
 
 @section('content')
 <h1>Update Admin</h1>
-@include('admin.form', ['action' => url('/admins/' . $admin->id), 'method' => 'PUT', 'admin' => $admin])
+@include('admin.form', ['action' => $schoolRoute('admins/' . $admin->id), 'method' => 'PUT', 'admin' => $admin])
 @endsection

@@ -112,3 +112,22 @@ Developer details are displayed as:
 Delete records using the **Delete** button in the table at the `/developers/` endpoint.  
 
 ---
+
+## Validation Summary
+
+- `name` is required and stored in a `varchar(255)` column; reject empty values.  
+- `email` is required, must be unique among developers, and uses case-insensitive comparisons because the column type is `citext`.  
+- `password` is required on create but may stay unchanged on update when the field is left blank.  
+- `phone` is optional; when present it must fit within 15 characters.  
+- The role is auto-forced to developer and developers must not be linked to any school (`school_id` is enforced to stay null).
+
+---
+
+## Database Notes
+
+- Rows live in `core.users` with `role = 'developer'`; the `chk_users_school_presence` check constraint keeps `school_id` null for this role (`0001_01_01_000000_initial_schema.php`).  
+- Unique index `uq_users_email_developer` guarantees developer emails are unique regardless of casing (`0001_01_01_000000_initial_schema.php`).  
+- Trigger `trg_core_users_updated_at` refreshes `updated_at` timestamps on every change (`0001_01_01_000000_initial_schema.php`).  
+- `developer_details_view` exposes the id, name, contact info, verification timestamp, and audit fields for reads (`2024_07_18_120000_refresh_developer_details_view.php`).
+
+---

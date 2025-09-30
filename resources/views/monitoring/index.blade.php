@@ -29,7 +29,7 @@
         @if($isStudent)
             <button class="btn btn-primary" disabled>Create Monitoring</button>
         @else
-            <a href="/monitorings/create" class="btn btn-primary">Create Monitoring</a>
+            <a href="{{ $schoolRoute('monitorings/create') }}" class="btn btn-primary">Create Monitoring</a>
         @endif
     </div>
 </div>
@@ -63,13 +63,13 @@
                 <td>{{ $log->log_date }}</td>
                 <td>{{ ucwords(str_replace('_', ' ', $log->log_type)) }}</td>
                 <td class="text-nowrap">
-                    <a href="/monitorings/{{ $log->monitoring_log_id }}/read" class="btn btn-sm btn-outline-secondary">Read</a>
+                    <a href="{{ $schoolRoute('monitorings/' . $log->monitoring_log_id . '/read') }}" class="btn btn-sm btn-outline-secondary">Read</a>
                     @if($isStudent)
                         <button class="btn btn-sm btn-warning" disabled>Update</button>
                         <button class="btn btn-sm btn-danger" disabled>Delete</button>
                     @else
-                        <a href="/monitorings/{{ $log->monitoring_log_id }}/update" class="btn btn-sm btn-warning">Update</a>
-                        <form action="/monitorings/{{ $log->monitoring_log_id }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this monitoring?');">
+                        <a href="{{ $schoolRoute('monitorings/' . $log->monitoring_log_id . '/update') }}" class="btn btn-sm btn-warning">Update</a>
+                        <form action="{{ $schoolRoute('monitorings/' . $log->monitoring_log_id) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this monitoring?');">
                             @csrf
                             @method('DELETE')
                             <button type="submit" class="btn btn-sm btn-danger">Delete</button>

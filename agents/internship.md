@@ -14,7 +14,7 @@ The CRUD Internship is used to perform operations on the **internship** table.
 
 ---
 
-## List – `/internships/`
+## List – `/{school_code}/internships/`
 1. Page title: **Internships**
 
 2. **Search Input**  
@@ -53,7 +53,7 @@ The CRUD Internship is used to perform operations on the **internship** table.
 
 ---
 
-## Create – `/internships/create/`
+## Create – `/{school_code}/internships/create/`
 1. Page title: **Create Internship**  
 2. Inputs:  
    * Application (Dropdown) (Tom Select)
@@ -78,10 +78,10 @@ The CRUD Internship is used to perform operations on the **internship** table.
 
 ---
 
-## Read – `/internships/[id]/read/`
+## Read – `/{school_code}/internships/[id]/read/`
 Internship details displayed as:  
 * Student Photo: {value}
-* Student Name: {value} (click → `/students/[id]/read/`)  
+* Student Name: {value} (click → `/{school_code}/students/[id]/read/`)  
 * Student Email: {value}
 * Student Phone: {value}
 * Student Number: {value}
@@ -91,7 +91,7 @@ Internship details displayed as:
 * Student Batch: {value}
 * Student Notes: {value}
 * Institution Photo: {value}
-* Institution Name: {value} (click → `/institutions/[id]/read/`)  
+* Institution Name: {value} (click → `/{school_code}/institutions/[id]/read/`)  
 * Institution Address: {value}
 * Institution City: {value}
 * Institution Province: {value}
@@ -120,7 +120,7 @@ Internship details displayed as:
 
 ---
 
-## Update – `/internship/[id]/update/`
+## Update – `/{school_code}/internship/[id]/update/`
 1. Page title: **Update Application**  
 2. Inputs:  
    * Application (Dropdown) (Tom Select) (Disabled)
@@ -147,6 +147,28 @@ Internship details displayed as:
 ---
 
 ## Delete
-Delete records through the **Delete** button in the table at `/internships/`.  
+Delete records through the **Delete** button in the table at `/{school_code}/internships/`.  
+
+---
+
+## Validation Summary
+
+- `application_id` (and implicitly `school_id`) is required; each application can spawn only one internship (`uq_internships_application`).  
+- Only applications in `accepted` status are eligible; the UI must block anything else because the trigger rejects it.  
+- `status` must be one of `planned`, `ongoing`, `completed`, or `terminated` (`internship_status_enum`).  
+- `start_date` and `end_date` are optional, but when both are supplied `end_date` cannot precede `start_date` (database check).  
+- The `(student_id, period_id)` pair must remain unique, effectively limiting students to a single internship per period (`uq_internships_student_period`).  
+- `student_id`, `institution_id`, and `period_id` are auto-synchronised from the linked application; reject mismatched realm data before saving.  
+- Supervisor assignments use a pivot table; the database does not enforce a single primary flag, so guardrails for “exactly one primary” must live in the UI if required.
+
+---
+
+## Database Notes
+
+- Internships live in `app.internships` with FKs to `app.applications`, `app.students`, `app.institutions`, `app.periods`, and `app.schools`; the school scope migration added the `school_id` column and updated triggers to enforce realm alignment (`0001_01_01_000001_create_my_desain.php`, `2024_08_20_000001_add_school_scope.php`).  
+- `app.enforce_internship_from_accepted_application()` (triggered by `trg_internship_enforce_app`) copies student, institution, period, and school data from the accepted application and raises errors when mismatched or unaccepted (`0001_01_01_000001_create_my_desain.php`, updated in `2024_08_20_000001_add_school_scope.php`).  
+- `trg_internships_updated_at` keeps audit timestamps current, while indexes on `(student_id, period_id)` and `(institution_id, period_id)` support filtering (`0001_01_01_000001_create_my_desain.php`).  
+- Supervisor relationships are stored in `app.internship_supervisors`; the composite PK prevents duplicates and the partial index speeds up lookups for primaries (`0001_01_01_000001_create_my_desain.php`).  
+- `internship_details_view` provides the joined student, institution, and period context scoped by `school_id` (`2024_08_21_000000_refresh_views_for_school_scope.php`).
 
 ---

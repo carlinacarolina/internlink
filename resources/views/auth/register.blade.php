@@ -37,6 +37,13 @@
         <label for="phone" class="form-label">Phone</label>
         <input type="number" id="phone" name="phone" class="form-control" value="{{ old('phone', $data['phone'] ?? '') }}" required>
     </div>
+    <div class="mb-3">
+        <label for="school-code" class="form-label">School Code</label>
+        <input type="text" id="school-code" name="school_code" class="form-control" value="{{ old('school_code', $data['school_code'] ?? '') }}" required>
+        @if(!empty($data['school_name']))
+            <small class="form-text text-muted">Last matched school: {{ $data['school_name'] }}</small>
+        @endif
+    </div>
     <div class="mb-4">
         <label for="role" class="form-label">Role</label>
         <select id="role" name="role" class="form-select" required>
@@ -52,6 +59,9 @@
 @else
 <form method="POST" action="{{ route('signup') }}" enctype="multipart/form-data" class="auth-form">
     @csrf
+    @if (!empty($data['school_name']))
+        <div class="alert alert-info">Registering under <strong>{{ $data['school_name'] }}</strong></div>
+    @endif
     @if (($data['role'] ?? '') === 'student')
     <div class="mb-3">
         <label for="student_number" class="form-label">Student Number</label>

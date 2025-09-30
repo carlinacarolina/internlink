@@ -10,15 +10,21 @@ class EnsureAdminSelf
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if (session('role') === 'admin') {
+        $role = session('role');
+        if ($role === 'admin') {
             $routeId = (int) $request->route('id');
             if ($routeId !== (int) session('user_id')) {
-                abort(401);
+                abort(403);
             }
-        } elseif (session('role') === 'developer') {
+
+            $currentSchoolId = app()->bound('currentSchool') ? app('currentSchool')->id : null;
+            if ($currentSchoolId && (int) session('school_id') !== (int) $currentSchoolId) {
+                abort(403);
+            }
+        } elseif ($role === 'developer') {
             // Developers can manage any admin account
         } else {
-            abort(401);
+            abort(403);
         }
         return $next($request);
     }

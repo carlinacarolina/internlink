@@ -84,5 +84,5 @@
         </div>
     </div>
 </div>
-<a href="/institutions" class="btn btn-secondary">Back</a>
+<a href="{{ $schoolRoute('institutions') }}" class="btn btn-secondary">Back</a>
 @endsection

@@ -93,7 +93,7 @@
         </div>
     </div>
     <div class="card-footer d-flex justify-content-end gap-2">
-        <a href="{{ url('/monitorings') }}" class="btn btn-outline-secondary">Cancel</a>
+        <a href="{{ $schoolRoute('monitorings') }}" class="btn btn-outline-secondary">Cancel</a>
         <button type="submit" class="btn btn-primary">Save</button>
     </div>
 </form>

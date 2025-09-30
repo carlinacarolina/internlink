@@ -41,7 +41,7 @@
         </select>
     </div>
 
-    <a href="{{ $cancelUrl ?? url('/internships') }}" class="btn btn-secondary">Cancel</a>
+    <a href="{{ $cancelUrl ?? $schoolRoute('internships') }}" class="btn btn-secondary">Cancel</a>
     <button type="submit" class="btn btn-primary">Save</button>
 </form>
 

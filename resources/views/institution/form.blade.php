@@ -155,7 +155,7 @@
     </div>
 
     <div class="d-flex gap-2 justify-content-end border-top pt-3 mt-2">
-        <a href="/institutions" class="btn btn-secondary">Cancel</a>
+        <a href="{{ $schoolRoute('institutions') }}" class="btn btn-secondary">Cancel</a>
         <button type="submit" class="btn btn-primary">Save</button>
     </div>
 </form>

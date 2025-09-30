@@ -10,8 +10,20 @@ class EnsureAdmin
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if (!in_array(session('role'), ['admin', 'developer'])) {
-            abort(401);
+        $role = session('role');
+        if ($role === 'developer') {
+            return $next($request);
+        }
+
+        if ($role !== 'admin') {
+            abort(403);
+        }
+
+        $currentSchoolId = app()->bound('currentSchool') ? app('currentSchool')->id : null;
+        $sessionSchoolId = session('school_id');
+
+        if (!$currentSchoolId || (int) $sessionSchoolId !== (int) $currentSchoolId) {
+            abort(403);
         }
         return $next($request);
     }

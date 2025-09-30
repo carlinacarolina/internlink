@@ -23,7 +23,7 @@
             @endif
         </button>
         @if($role === 'developer')
-            <a class="btn btn-primary" href="/admins/create">Create Admin</a>
+            <a class="btn btn-primary" href="{{ $schoolRoute('admins/create') }}">Create Admin</a>
         @else
             <button class="btn btn-primary" disabled>Create Admin</button>
         @endif
@@ -59,9 +59,9 @@
                 <td>{{ $admin->email }}</td>
                 <td>{{ $admin->phone ?? '—' }}</td>
                 <td class="text-nowrap">
-                    <a href="/admins/{{ $admin->id }}/read" class="btn btn-sm btn-outline-secondary">Read</a>
-                    <a href="/admins/{{ $admin->id }}/update" class="btn btn-sm btn-warning">Update</a>
-                    <form action="/admins/{{ $admin->id }}" method="POST" class="d-inline">
+                    <a href="{{ $schoolRoute('admins/' . $admin->id . '/read') }}" class="btn btn-sm btn-outline-secondary">Read</a>
+                    <a href="{{ $schoolRoute('admins/' . $admin->id . '/update') }}" class="btn btn-sm btn-warning">Update</a>
+                    <form action="{{ $schoolRoute('admins/' . $admin->id) }}" method="POST" class="d-inline">
                         @csrf
                         @method('DELETE')
                         <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this admin?');">Delete</button>

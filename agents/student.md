@@ -14,7 +14,7 @@ CRUD Student is used to perform operations on the **user** table with the **Stud
 
 ---
 
-## List – `/students/`
+## List – `/{school_code}/students/`
 
 1. Page title: **Students**.  
 
@@ -59,7 +59,7 @@ Notes: Anticipate if the table width exceeds the screen width due to its content
 
 ---
 
-## Create – `/students/create/`
+## Create – `/{school_code}/students/create/`
 
 1. Page title: **Create Student**.  
 
@@ -88,7 +88,7 @@ Notes: Anticipate if the table width exceeds the screen width due to its content
 
 ---
 
-## Read – `/students/[id]/read/`
+## Read – `/{school_code}/students/[id]/read/`
 
 Student details are displayed as:  
 * Photo: {value}  
@@ -105,7 +105,7 @@ Student details are displayed as:
 
 ---
 
-## Update – `/students/[id]/update/`
+## Update – `/{school_code}/students/[id]/update/`
 
 1. Page title: **Update Student**.  
 
@@ -138,6 +138,28 @@ Student details are displayed as:
 
 ## Delete
 
-Delete records using the **Delete** button in the table at the `/students/` endpoint.  
+Delete records using the **Delete** button in the table at the `/{school_code}/students/` endpoint.  
+
+---
+
+## Validation Summary
+
+- `name` is required (`varchar(255)` in `core.users`).  
+- `email` is required, case-insensitively unique per school, and must stay within email formatting rules.  
+- `password` is required on create; on update it can remain unchanged if the field is empty.  
+- `phone` is optional but capped at 15 characters.  
+- `student_number` (NIS) and `national_sn` (NISN) are required and each must remain unique inside the school (`uq_students_school_student_number`, `uq_students_school_national_sn`).  
+- `major`, `class`, and `batch` are required profile fields (`varchar(100)`, `varchar(100)`, and `varchar(9)` respectively).  
+- `notes` and `photo` are optional text fields.  
+- Student accounts must stay attached to the active school realm, and the linked user role must always be `student`.
+
+---
+
+## Database Notes
+
+- Identity data lives in `core.users` with `role = 'student'` and non-null `school_id` pointing to `app.schools(id)` (`0001_01_01_000000_initial_schema.php`).  
+- Profile data is stored in `app.students`, referencing both `core.users(id)` and `app.schools(id)`; the school scope migration added the `school_id` column and per-school unique indexes (`2024_08_20_000001_add_school_scope.php`).  
+- Trigger `trg_students_role` enforces that the linked user keeps the student role, while `trg_students_updated_at` maintains timestamps (`0001_01_01_000001_create_my_desain.php`).  
+- `student_details_view` combines user and student columns (including `school_id`) for read/list operations (`2024_08_21_000000_refresh_views_for_school_scope.php`).
 
 ---

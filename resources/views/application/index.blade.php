@@ -22,7 +22,7 @@
                 <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-primary">{{ count($filters) }}</span>
             @endif
         </button>
-        <a href="/applications/create" class="btn btn-primary">Create Application</a>
+        <a href="{{ $schoolRoute('applications/create') }}" class="btn btn-primary">Create Application</a>
     </div>
 </div>
 
@@ -65,9 +65,9 @@
                 <td>{{ $application->student_access ? 'True' : 'False' }}</td>
                 <td>{{ \Illuminate\Support\Carbon::parse($application->submitted_at)->format('Y-m-d') }}</td>
                 <td class="text-nowrap">
-                    <a href="/applications/{{ $application->id }}/read" class="btn btn-sm btn-outline-secondary">Read</a>
-                    <a href="/applications/{{ $application->id }}/update" class="btn btn-sm btn-warning">Update</a>
-                    <form action="/applications/{{ $application->id }}" method="POST" class="d-inline">
+                    <a href="{{ $schoolRoute('applications/' . $application->id . '/read') }}" class="btn btn-sm btn-outline-secondary">Read</a>
+                    <a href="{{ $schoolRoute('applications/' . $application->id . '/update') }}" class="btn btn-sm btn-warning">Update</a>
+                    <form action="{{ $schoolRoute('applications/' . $application->id) }}" method="POST" class="d-inline">
                         @csrf
                         @method('DELETE')
                         <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this application?');">Delete</button>
@@ -224,7 +224,7 @@
     });
 
     resetButton.addEventListener('click', () => {
-        window.location = '{{ url('/applications') }}';
+        window.location = '{{ $schoolRoute('applications') }}';
     });
 })();
 </script>

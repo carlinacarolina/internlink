@@ -10,6 +10,7 @@ class Internship extends Model
     use HasFactory;
 
     protected $fillable = [
+        'school_id',
         'application_id',
         'student_id',
         'institution_id',
@@ -23,4 +24,9 @@ class Internship extends Model
         'start_date' => 'date',
         'end_date' => 'date',
     ];
+
+    public function school()
+    {
+        return $this->belongsTo(School::class);
+    }
 }

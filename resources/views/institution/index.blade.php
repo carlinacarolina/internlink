@@ -28,7 +28,7 @@
         @if($isStudent)
             <button class="btn btn-primary" disabled>Create Institution</button>
         @else
-            <a href="/institutions/create" class="btn btn-primary">Create Institution</a>
+            <a href="{{ $schoolRoute('institutions/create') }}" class="btn btn-primary">Create Institution</a>
         @endif
     </div>
 </div>
@@ -80,10 +80,10 @@
                 <td>{{ $institution->quota ?? '—' }}</td>
                 <td>{{ $institution->used ?? '—' }}</td>
                 <td class="text-nowrap">
-                    <a href="/institutions/{{ $institution->id }}/read" class="btn btn-sm btn-outline-secondary">Read</a>
+                    <a href="{{ $schoolRoute('institutions/' . $institution->id . '/read') }}" class="btn btn-sm btn-outline-secondary">Read</a>
                     @if(!$isStudent)
-                        <a href="/institutions/{{ $institution->id }}/update" class="btn btn-sm btn-warning">Update</a>
-                        <form action="/institutions/{{ $institution->id }}" method="POST" class="d-inline">
+                        <a href="{{ $schoolRoute('institutions/' . $institution->id . '/update') }}" class="btn btn-sm btn-warning">Update</a>
+                        <form action="{{ $schoolRoute('institutions/' . $institution->id) }}" method="POST" class="d-inline">
                             @csrf
                             @method('DELETE')
                             <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this institution?');">Delete</button>

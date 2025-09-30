@@ -11,67 +11,117 @@
 <body>
 @include('layouts.partials.header')
 @php
+    use Illuminate\Support\Str;
+
     $role = session('role');
     $currentPath = request()->path();
-    $normalizedPath = $currentPath === '/' ? '/' : ltrim($currentPath, '/');
-    $navItems = [
-        [
-            'label' => 'Dashboard',
-            'href' => url('/'),
-            'icon' => 'bi-speedometer2',
-            'patterns' => ['/', 'dashboard'],
-        ],
-        [
-            'label' => 'Students',
-            'href' => url('/students'),
-            'icon' => 'bi-mortarboard',
-            'patterns' => ['students*'],
-        ],
-        [
-            'label' => 'Supervisors',
-            'href' => url('/supervisors'),
-            'icon' => 'bi-people',
-            'patterns' => ['supervisors*'],
-        ],
-        [
-            'label' => 'Admins',
-            'href' => url('/admins'),
-            'icon' => 'bi-shield-lock',
-            'patterns' => ['admins*'],
-            'roles' => ['admin', 'developer'],
-        ],
-        [
-            'label' => 'Developers',
-            'href' => url('/developers'),
-            'icon' => 'bi-code-slash',
-            'patterns' => ['developers*'],
-            'roles' => ['developer'],
-        ],
-        [
-            'label' => 'Institutions',
-            'href' => url('/institutions'),
-            'icon' => 'bi-building',
-            'patterns' => ['institutions*'],
-        ],
-        [
-            'label' => 'Applications',
-            'href' => url('/applications'),
-            'icon' => 'bi-file-earmark-text',
-            'patterns' => ['applications*'],
-        ],
-        [
-            'label' => 'Internships',
-            'href' => url('/internships'),
-            'icon' => 'bi-briefcase',
-            'patterns' => ['internships*'],
-        ],
-        [
-            'label' => 'Monitorings',
-            'href' => url('/monitorings'),
-            'icon' => 'bi-clipboard-data',
-            'patterns' => ['monitorings*'],
-        ],
-    ];
+    $normalizedPath = trim($currentPath, '/');
+    if ($normalizedPath === '') {
+        $normalizedPath = '/';
+    }
+
+    $hasSchool = app()->bound('currentSchool');
+    $schoolCode = $hasSchool ? (string) app('currentSchool')->code : null;
+    $schoolSegment = $schoolCode !== null ? rawurlencode($schoolCode) : null;
+
+    $schoolUrl = function (string $path = '') use ($hasSchool, $schoolSegment) {
+        if ($hasSchool && $schoolSegment !== null) {
+            $trimmed = trim($path, '/');
+            $segment = $schoolSegment . ($trimmed !== '' ? '/' . $trimmed : '');
+            return url($segment === '' ? '/' : $segment);
+        }
+
+        $trimmed = trim($path, '/');
+        return url($trimmed === '' ? '/' : $trimmed);
+    };
+
+    if (!$hasSchool) {
+        $navItems = [
+            [
+                'label' => 'Dashboard',
+                'href' => url('/'),
+                'icon' => 'bi-speedometer2',
+                'patterns' => ['/', 'dashboard'],
+            ],
+        ];
+
+        if ($role === 'developer') {
+            $navItems[] = [
+                'label' => 'Developers',
+                'href' => url('/developers'),
+                'icon' => 'bi-code-slash',
+                'patterns' => ['developers*'],
+            ];
+
+            $navItems[] = [
+                'label' => 'Schools',
+                'href' => url('/schools'),
+                'icon' => 'bi-building-check',
+                'patterns' => ['schools*'],
+            ];
+        }
+    } else {
+        $basePrefix = $schoolSegment . '/';
+
+        $navItems = [
+            [
+                'label' => 'Dashboard',
+                'href' => $schoolUrl(),
+                'icon' => 'bi-speedometer2',
+                'patterns' => [$schoolSegment, $basePrefix . 'dashboard*'],
+            ],
+            [
+                'label' => 'Students',
+                'href' => $schoolUrl('students'),
+                'icon' => 'bi-mortarboard',
+                'patterns' => [$basePrefix . 'students*'],
+            ],
+            [
+                'label' => 'Supervisors',
+                'href' => $schoolUrl('supervisors'),
+                'icon' => 'bi-people',
+                'patterns' => [$basePrefix . 'supervisors*'],
+            ],
+            [
+                'label' => 'Admins',
+                'href' => $schoolUrl('admins'),
+                'icon' => 'bi-shield-lock',
+                'patterns' => [$basePrefix . 'admins*'],
+                'roles' => ['admin', 'developer'],
+            ],
+            [
+                'label' => 'Schools',
+                'href' => url('/schools'),
+                'icon' => 'bi-building-check',
+                'patterns' => ['schools*'],
+                'roles' => ['developer'],
+            ],
+            [
+                'label' => 'Institutions',
+                'href' => $schoolUrl('institutions'),
+                'icon' => 'bi-building',
+                'patterns' => [$basePrefix . 'institutions*'],
+            ],
+            [
+                'label' => 'Applications',
+                'href' => $schoolUrl('applications'),
+                'icon' => 'bi-file-earmark-text',
+                'patterns' => [$basePrefix . 'applications*'],
+            ],
+            [
+                'label' => 'Internships',
+                'href' => $schoolUrl('internships'),
+                'icon' => 'bi-briefcase',
+                'patterns' => [$basePrefix . 'internships*'],
+            ],
+            [
+                'label' => 'Monitorings',
+                'href' => $schoolUrl('monitorings'),
+                'icon' => 'bi-clipboard-data',
+                'patterns' => [$basePrefix . 'monitorings*'],
+            ],
+        ];
+    }
 
     $navItems = array_values(array_filter($navItems, function ($item) use ($role) {
         if (!isset($item['roles'])) {
@@ -92,12 +142,12 @@
                 @php
                     $isActive = false;
                     foreach ($item['patterns'] as $pattern) {
-                        if ($pattern === '/' && $currentPath === '/') {
+                        if ($pattern === '/' && $normalizedPath === '/') {
                             $isActive = true;
                             break;
                         }
 
-                        if ($pattern !== '/' && \Illuminate\Support\Str::is($pattern, $normalizedPath)) {
+                        if ($pattern !== '/' && Str::is($pattern, $normalizedPath)) {
                             $isActive = true;
                             break;
                         }

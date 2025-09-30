@@ -14,7 +14,7 @@ The CRUD Application is used to perform operations on the **application** table.
 
 ---
 
-## List – `/applications/`
+## List – `/{school_code}/applications/`
 1. Page title: **Applications**
 
 2. **Search Input**  
@@ -54,7 +54,7 @@ The CRUD Application is used to perform operations on the **application** table.
 
 ---
 
-## Create – `/applications/create/`
+## Create – `/{school_code}/applications/create/`
 1. Page title: **Create Application**  
 2. Inputs:  
    * Student Name (Dropdown, Tom Select)
@@ -82,10 +82,10 @@ The CRUD Application is used to perform operations on the **application** table.
 
 ---
 
-## Read – `/applications/[id]/read/`
+## Read – `/{school_code}/applications/[id]/read/`
 Application details displayed as:  
 * Student Photo
-* Student Name (click → `/students/[id]/read/`)  
+* Student Name (click → `/{school_code}/students/[id]/read/`)  
 * Student Email
 * Student Phone  
 * Student Number  
@@ -95,7 +95,7 @@ Application details displayed as:
 * Student Batch  
 * Student Notes  
 * Institution Photo  
-* Institution Name (click → `/institutions/[id]/read/`)  
+* Institution Name (click → `/{school_code}/institutions/[id]/read/`)  
 * Institution Address  
 * Institution City  
 * Institution Province  
@@ -120,13 +120,13 @@ Application details displayed as:
 * Notes  
 
 ### PDF Utilities
-* Detail page provides a `Download PDF` button that performs a direct file download via `/applications/{id}/pdf/print`.
+* Detail page provides a `Download PDF` button that performs a direct file download via `/{school_code}/applications/{id}/pdf/print`.
 * The printable layout is generated from the shared Tailwind template used by both the inline PDF endpoint and the download, ensuring visual parity.
-* Access `/applications/{id}/pdf` to inspect the generated PDF in the browser viewer.
+* Access `/{school_code}/applications/{id}/pdf` to inspect the generated PDF in the browser viewer.
 
 ---
 
-## Update – `/applications/[id]/update/`
+## Update – `/{school_code}/applications/[id]/update/`
 1. Page title: **Update Application**  
 2. Inputs:  
    * Student Name (Dropdown, Tom Select – disabled, default from database)
@@ -158,6 +158,29 @@ Application details displayed as:
 ---
 
 ## Delete
-Delete records through the **Delete** button in the table at `/applications/`.  
+Delete records through the **Delete** button in the table at `/{school_code}/applications/`.  
+
+---
+
+## Validation Summary
+
+- `student_id`, `institution_id`, `period_id`, and `school_id` are mandatory; the combination `(student_id, institution_id, period_id)` must stay unique per school.  
+- Application `status` must be one of `draft`, `submitted`, `under_review`, `accepted`, `rejected`, or `cancelled` (values of `application_status_enum`).  
+- `student_access` is a boolean flag that defaults to `FALSE`; only non-student roles should be allowed to toggle it.  
+- `submitted_at` stores a timestamp (defaults to `now()`); reject invalid date formats.  
+- `notes` are optional text, but the field should accept null when not provided.  
+- When creating multiple records via the bulk helpers, enforce that every selected student belongs to the same school and that each resulting application still meets the uniqueness constraint.  
+- Moving an application into an active status triggers quota validation and the “max 3 active per student per period” rule, so the UI must surface violations before saving.
+
+---
+
+## Database Notes
+
+- Records live in `app.applications` with foreign keys to `app.students`, `app.institutions`, `app.periods`, and `app.schools`; `school_id` became mandatory in the realm migration (`0001_01_01_000001_create_my_desain.php`, `2024_08_20_000001_add_school_scope.php`).  
+- Unique constraint `uq_application_unique_per_period` prevents duplicate applications for the same student, institution, and period combination (`0001_01_01_000001_create_my_desain.php`).  
+- Triggers `trg_applications_updated_at`, `trg_app_log_status_insert`, and `trg_app_log_status` keep audit timestamps and insert rows into `app.application_status_history`; this history table also stores `school_id` and enforces non-student actors (`0001_01_01_000001_create_my_desain.php`, `2024_08_20_000001_add_school_scope.php`).  
+- Business rules are enforced through database triggers: `app.ensure_quota_exists_on_active()` and `app.enforce_max_active_per_student()` validate status changes, while `app.bump_quota_used_active()` synchronises `app.institution_quotas.used` counts (`0001_01_01_000001_create_my_desain.php`, `2024_08_20_000001_add_school_scope.php`).  
+- `application_details_view` joins students, institutions, and periods (all scoped by `school_id`) for read operations (`2024_08_21_000000_refresh_views_for_school_scope.php`).  
+- Status changes are trailable through `app.application_status_history`, which references the triggering user via `changed_by` and blocks student actors through trigger `trg_ash_guard_ins`.
 
 ---

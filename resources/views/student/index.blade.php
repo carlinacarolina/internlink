@@ -26,7 +26,7 @@
         @if($isStudent)
             <button class="btn btn-primary" disabled>Create Student</button>
         @else
-            <a href="/students/create" class="btn btn-primary">Create Student</a>
+            <a href="{{ $schoolRoute('students/create') }}" class="btn btn-primary">Create Student</a>
         @endif
     </div>
 </div>
@@ -72,9 +72,9 @@
                 <td>{{ $student->class }}</td>
                 <td>{{ $student->batch }}</td>
                 <td class="text-nowrap text-center">
-                    <a href="/students/{{ $student->id }}/read" class="btn btn-sm btn-outline-secondary">Read</a>
-                    <a href="/students/{{ $student->id }}/update" class="btn btn-sm btn-warning">Update</a>
-                    <form action="/students/{{ $student->id }}" method="POST" class="d-inline">
+                    <a href="{{ $schoolRoute('students/' . $student->id . '/read') }}" class="btn btn-sm btn-outline-secondary">Read</a>
+                    <a href="{{ $schoolRoute('students/' . $student->id . '/update') }}" class="btn btn-sm btn-warning">Update</a>
+                    <form action="{{ $schoolRoute('students/' . $student->id) }}" method="POST" class="d-inline">
                         @csrf
                         @method('DELETE')
                         <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this student?');">Delete</button>

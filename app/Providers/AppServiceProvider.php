@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +20,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        View::share('currentSchool', null);
+        View::share('schoolRoutePrefix', '');
+        View::share('schoolRoute', fn (string $path = '') => '/' . ltrim($path, '/'));
     }
 }

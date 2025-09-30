@@ -15,7 +15,7 @@ CRUD Admin is used to perform operations on the **user** table with the **Admin*
 
 ---
 
-## List – `/admins/`
+## List – `/{school_code}/admins/`
 
 1. Page title: **Admins**.
 
@@ -53,7 +53,7 @@ Notes: Anticipate if the table width exceeds the screen width due to its content
 
 ---
 
-## Create – `/admins/create/`
+## Create – `/{school_code}/admins/create/`
 
 1. Page title: **Create Admin**.  
 
@@ -76,7 +76,7 @@ Notes: Anticipate if the table width exceeds the screen width due to its content
 
 ---
 
-## Read – `/admins/[id]/read/`
+## Read – `/{school_code}/admins/[id]/read/`
 
 Admin details are displayed as:  
 * Name: {value}  
@@ -86,7 +86,7 @@ Admin details are displayed as:
 
 ---
 
-## Update – `/admins/[id]/update/`
+## Update – `/{school_code}/admins/[id]/update/`
 
 1. Page title: **Update Admin**.  
 
@@ -113,6 +113,25 @@ Admin details are displayed as:
 
 ## Delete
 
-Delete records using the **Delete** button in the table at the `/admins/` endpoint.  
+Delete records using the **Delete** button in the table at `/{school_code}/admins/`.  
+
+---
+
+## Validation Summary
+
+- `name` is required and stored as `varchar(255)`; block empty submissions.  
+- `email` is required, case-insensitively unique per school, and must stay within standard email formatting.  
+- `password` is required on create; on update it may remain unchanged when left blank.  
+- `phone` is optional; when provided it must fit within 15 characters.  
+- `school_id` is injected from the active realm and cannot be null for admins.
+
+---
+
+## Database Notes
+
+- Admin accounts live in `core.users` with `role = 'admin'` and a non-null `school_id` referencing `app.schools(id)` (`0001_01_01_000000_initial_schema.php`).  
+- Check constraint `chk_users_school_presence` enforces that only non-developers (including admins) must have a school assigned (`0001_01_01_000000_initial_schema.php`).  
+- Partial unique index `uq_users_school_email` keeps admin emails unique within each school using the `citext` column (`0001_01_01_000000_initial_schema.php`).  
+- Trigger `trg_core_users_updated_at` refreshes `updated_at` whenever the admin record changes (`0001_01_01_000000_initial_schema.php`).
 
 ---

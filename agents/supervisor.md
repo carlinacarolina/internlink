@@ -14,7 +14,7 @@ CRUD Supervisor is used to perform operations on the **user** table with the **S
 
 ---
 
-## List – `/supervisors/`
+## List – `/{school_code}/supervisors/`
 
 1. Page title: **Supervisors**.  
 
@@ -55,7 +55,7 @@ Notes: Anticipate if the table width exceeds the screen width due to its content
 
 ---
 
-## Create – `/supervisors/create/`
+## Create – `/{school_code}/supervisors/create/`
 
 1. Page title: **Create Supervisor**.  
 
@@ -81,7 +81,7 @@ Notes: Anticipate if the table width exceeds the screen width due to its content
 
 ---
 
-## Read – `/supervisors/[id]/read/`
+## Read – `/{school_code}/supervisors/[id]/read/`
 
 Supervisor details are displayed as:  
 * Photo: {value}  
@@ -95,7 +95,7 @@ Supervisor details are displayed as:
 
 ---
 
-## Update – `/supervisors/[id]/update/`
+## Update – `/{school_code}/supervisors/[id]/update/`
 
 1. Page title: **Update Supervisor**.  
 
@@ -125,7 +125,29 @@ Supervisor details are displayed as:
 
 ## Delete
 
-Delete records using the **Delete** button in the table at the `/supervisors/` endpoint.  
+Delete records using the **Delete** button in the table at the `/{school_code}/supervisors/` endpoint.  
+
+---
+
+## Validation Summary
+
+- `name` is required (stored as `varchar(255)` in `core.users`).  
+- `email` is required and must stay unique within the same school because the column uses `citext` combined with `uq_users_school_email`.  
+- `password` is required on create and may remain unchanged on update when the field is empty.  
+- `phone` is optional but limited to 15 characters.  
+- `supervisor_number` is required and must stay unique per school (`uq_supervisors_school_number`).  
+- `department` is required (`varchar(100)`), while `notes` and `photo` are optional text fields.  
+- Supervisor accounts must always be tied to the active school realm; the role is locked to `supervisor` by database trigger.
+
+---
+
+## Database Notes
+
+- Identity data lives in `core.users` with `role = 'supervisor'` and non-null `school_id` referencing `app.schools(id)` (`0001_01_01_000000_initial_schema.php`, `2024_08_20_000001_add_school_scope.php`).  
+- Profile data is stored in `app.supervisors` with foreign keys to both `core.users(id)` and `app.schools(id)`; `school_id` became mandatory in the school scope migration (`2024_08_20_000001_add_school_scope.php`).  
+- Unique index `uq_supervisors_school_number` prevents duplicate supervisor numbers within a school (`2024_08_20_000001_add_school_scope.php`).  
+- Trigger `trg_supervisors_role` calls `app.enforce_role_supervisor()` so the linked user must stay in the supervisor role, and `trg_supervisors_updated_at` keeps timestamps fresh (`0001_01_01_000001_create_my_desain.php`).  
+- `supervisor_details_view` surfaces school, user, and profile fields for list/read actions with the already-joined data (`2024_08_21_000000_refresh_views_for_school_scope.php`).
 
 ---
  

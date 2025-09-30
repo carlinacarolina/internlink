@@ -10,6 +10,7 @@ class InstitutionQuota extends Model
     use HasFactory;
 
     protected $fillable = [
+        'school_id',
         'institution_id',
         'period_id',
         'quota',
@@ -25,5 +26,10 @@ class InstitutionQuota extends Model
     public function period()
     {
         return $this->belongsTo(Period::class);
+    }
+
+    public function school()
+    {
+        return $this->belongsTo(School::class);
     }
 }

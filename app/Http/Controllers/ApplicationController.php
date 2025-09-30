@@ -13,6 +13,14 @@ class ApplicationController extends Controller
 {
     private const STUDENT_ACCESS_OPTIONS = ['true', 'false', 'any'];
 
+    private function schoolIdOrFail(): int
+    {
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
+
+        return $schoolId;
+    }
+
     private function statusOptions(): array
     {
         $driver = DB::getDriverName();
@@ -25,10 +33,11 @@ class ApplicationController extends Controller
         return ['submitted', 'under_review', 'accepted', 'rejected', 'cancelled'];
     }
 
-    private function periodOptions(): array
+    private function periodOptions(int $schoolId): array
     {
         return DB::table('periods')
             ->select('id', 'year', 'term')
+            ->where('school_id', $schoolId)
             ->orderByDesc('year')
             ->orderByDesc('term')
             ->get()
@@ -39,7 +48,7 @@ class ApplicationController extends Controller
             ->all();
     }
 
-    private function periodsByInstitution(array $institutionIds): array
+    private function periodsByInstitution(array $institutionIds, int $schoolId): array
     {
         if (empty($institutionIds)) {
             return [];
@@ -48,6 +57,8 @@ class ApplicationController extends Controller
         return DB::table('institution_quotas as iq')
             ->join('periods as p', 'p.id', '=', 'iq.period_id')
             ->whereIn('iq.institution_id', $institutionIds)
+            ->where('iq.school_id', $schoolId)
+            ->where('p.school_id', $schoolId)
             ->orderByDesc('p.year')
             ->orderByDesc('p.term')
             ->get([
@@ -74,7 +85,12 @@ class ApplicationController extends Controller
 
     private function resolvePrintableApplication(int $id)
     {
-        $application = DB::table('application_details_view')->where('id', $id)->first();
+        $schoolId = $this->schoolIdOrFail();
+
+        $application = DB::table('application_details_view')
+            ->where('id', $id)
+            ->where('school_id', $schoolId)
+            ->first();
         abort_if(!$application, 404);
 
         $studentId = $this->currentStudentId();
@@ -89,8 +105,9 @@ class ApplicationController extends Controller
     {
         $role = session('role');
         $studentId = $this->currentStudentId();
+        $schoolId = $this->schoolIdOrFail();
 
-        $query = DB::table('application_details_view');
+        $query = DB::table('application_details_view')->where('school_id', $schoolId);
         if ($role === 'student' && $studentId) {
             $query->where('student_id', $studentId);
         }
@@ -110,7 +127,11 @@ class ApplicationController extends Controller
 
         if ($periodId = $request->query('period_id')) {
             $query->where('period_id', $periodId);
-            $period = DB::table('periods')->select('year', 'term')->where('id', $periodId)->first();
+            $period = DB::table('periods')
+                ->select('year', 'term')
+                ->where('id', $periodId)
+                ->where('school_id', $schoolId)
+                ->first();
             if ($period) {
                 $filters['period_id'] = 'Period: ' . $period->year . ': ' . $period->term;
             }
@@ -182,7 +203,7 @@ class ApplicationController extends Controller
             'applications' => $applications,
             'filters' => $filters,
             'statuses' => $statuses,
-            'periods' => $this->periodOptions(),
+            'periods' => $this->periodOptions($schoolId),
         ]);
     }
 
@@ -190,9 +211,14 @@ class ApplicationController extends Controller
     {
         $role = session('role');
         $studentId = $this->currentStudentId();
+        $schoolId = $this->schoolIdOrFail();
 
         $studentsWithoutApplication = DB::table('student_details_view as sdv')
-            ->leftJoin('applications as apps', 'apps.student_id', '=', 'sdv.id')
+            ->leftJoin('applications as apps', function ($join) use ($schoolId) {
+                $join->on('apps.student_id', '=', 'sdv.id')
+                    ->where('apps.school_id', '=', $schoolId);
+            })
+            ->where('sdv.school_id', $schoolId)
             ->whereNull('apps.id')
             ->select('sdv.id', 'sdv.name')
             ->orderBy('sdv.name')
@@ -201,9 +227,11 @@ class ApplicationController extends Controller
         if ($role === 'student') {
             abort_unless($studentId, 401);
 
-            $hasExisting = Application::where('student_id', $studentId)->exists();
+            $hasExisting = Application::where('school_id', $schoolId)
+                ->where('student_id', $studentId)
+                ->exists();
             if ($hasExisting) {
-                return redirect('/applications')->withErrors([
+                return redirect($this->schoolRoute('applications'))->withErrors([
                     'student_ids' => 'You already have an application.',
                 ]);
             }
@@ -211,6 +239,7 @@ class ApplicationController extends Controller
             $students = DB::table('student_details_view')
                 ->select('id', 'name')
                 ->where('id', $studentId)
+                ->where('school_id', $schoolId)
                 ->orderBy('name')
                 ->get();
 
@@ -222,18 +251,20 @@ class ApplicationController extends Controller
 
         $institutions = DB::table('institution_details_view')
             ->select('id', 'name')
+            ->where('school_id', $schoolId)
             ->orderBy('name')
             ->get();
 
         $institutionPeriods = $this->periodsByInstitution(
-            $institutions->pluck('id')->map(fn ($id) => (int) $id)->all()
+            $institutions->pluck('id')->map(fn ($id) => (int) $id)->all(),
+            $schoolId
         );
 
         return view('application.create', [
             'students' => $students,
             'studentsWithoutApplication' => $studentsWithoutApplication,
             'institutions' => $institutions,
-            'periods' => $this->periodOptions(),
+            'periods' => $this->periodOptions($schoolId),
             'institutionPeriods' => $institutionPeriods,
             'statuses' => $this->statusOptions(),
             'canSetStudentAccess' => $role !== 'student',
@@ -245,12 +276,23 @@ class ApplicationController extends Controller
     {
         $role = session('role');
         $statuses = $this->statusOptions();
+        $schoolId = $this->schoolIdOrFail();
 
         $rules = [
             'student_ids' => 'required|array|min:1',
-            'student_ids.*' => 'distinct|integer|exists:students,id',
-            'institution_id' => 'required|exists:institutions,id',
-            'period_id' => 'required|exists:periods,id',
+            'student_ids.*' => [
+                'distinct',
+                'integer',
+                Rule::exists('students', 'id')->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
+            'institution_id' => [
+                'required',
+                Rule::exists('institutions', 'id')->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
+            'period_id' => [
+                'required',
+                Rule::exists('periods', 'id')->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
             'status' => ['required', Rule::in($statuses)],
             'submitted_at' => 'required|date',
             'notes' => 'nullable|string',
@@ -280,9 +322,12 @@ class ApplicationController extends Controller
             $studentId = $this->currentStudentId();
             abort_unless($studentId, 401);
 
-            $hasApplication = Application::where('student_id', $studentId)->exists();
+            $hasApplication = Application::where('school_id', $schoolId)
+                ->where('student_id', $studentId)
+                ->exists();
             if ($hasApplication) {
-                return redirect('/applications')->withErrors([
+                return redirect($this->schoolRoute('applications'))
+                    ->withErrors([
                     'student_ids' => 'You already have an application.',
                 ]);
             }
@@ -301,7 +346,11 @@ class ApplicationController extends Controller
 
         if ($role !== 'student' && $request->boolean('apply_missing')) {
             $missingIds = DB::table('student_details_view as sdv')
-                ->leftJoin('applications as apps', 'apps.student_id', '=', 'sdv.id')
+                ->leftJoin('applications as apps', function ($join) use ($schoolId) {
+                    $join->on('apps.student_id', '=', 'sdv.id')
+                        ->where('apps.school_id', '=', $schoolId);
+                })
+                ->where('sdv.school_id', $schoolId)
                 ->whereNull('apps.id')
                 ->pluck('sdv.id')
                 ->map(fn ($id) => (int) $id)
@@ -316,7 +365,8 @@ class ApplicationController extends Controller
             ])->withInput();
         }
 
-        $duplicateStudents = Application::whereIn('student_id', $targetStudentIds)
+        $duplicateStudents = Application::where('school_id', $schoolId)
+            ->whereIn('student_id', $targetStudentIds)
             ->where('institution_id', $institutionId)
             ->where('period_id', $periodId)
             ->pluck('student_id')
@@ -334,9 +384,10 @@ class ApplicationController extends Controller
             $studentAccess = $input === 'true';
         }
 
-        DB::transaction(function () use ($targetStudentIds, $institutionId, $periodId, $validated, $studentAccess) {
+        DB::transaction(function () use ($targetStudentIds, $institutionId, $periodId, $validated, $studentAccess, $schoolId) {
             foreach ($targetStudentIds as $studentId) {
                 Application::create([
+                    'school_id' => $schoolId,
                     'student_id' => $studentId,
                     'institution_id' => $institutionId,
                     'period_id' => $periodId,
@@ -353,10 +404,10 @@ class ApplicationController extends Controller
             ? 'Application created successfully.'
             : "Applications created successfully for {$count} students.";
 
-        return redirect('/applications')->with('status', $message);
+        return redirect($this->schoolRoute('applications'))->with('status', $message);
     }
 
-    public function show(int $id)
+    public function show(string $school, int $id)
     {
         $application = $this->resolvePrintableApplication($id);
 
@@ -365,7 +416,7 @@ class ApplicationController extends Controller
         ]);
     }
 
-    public function pdf(int $id)
+    public function pdf(string $school, int $id)
     {
         $application = $this->resolvePrintableApplication($id);
         $generatedAt = now();
@@ -380,7 +431,7 @@ class ApplicationController extends Controller
         ]);
     }
 
-    public function pdfPrint(int $id)
+    public function pdfPrint(string $school, int $id)
     {
         $application = $this->resolvePrintableApplication($id);
         $generatedAt = now();
@@ -421,9 +472,14 @@ class ApplicationController extends Controller
         return sprintf('application_%s.pdf', strtolower(trim($safeName, '_')) ?: 'student');
     }
 
-    public function edit(int $id)
+    public function edit(string $school, int $id)
     {
-        $application = DB::table('application_details_view')->where('id', $id)->first();
+        $schoolId = $this->schoolIdOrFail();
+
+        $application = DB::table('application_details_view')
+            ->where('id', $id)
+            ->where('school_id', $schoolId)
+            ->first();
         abort_if(!$application, 404);
 
         $role = session('role');
@@ -438,6 +494,7 @@ class ApplicationController extends Controller
         $studentsForInstitution = DB::table('application_details_view')
             ->select('student_id', 'student_name')
             ->where('institution_id', $application->institution_id)
+            ->where('school_id', $schoolId)
             ->distinct()
             ->orderBy('student_name')
             ->get();
@@ -448,11 +505,13 @@ class ApplicationController extends Controller
 
         $institutions = DB::table('institution_details_view')
             ->select('id', 'name')
+            ->where('school_id', $schoolId)
             ->orderBy('name')
             ->get();
 
         $institutionPeriods = $this->periodsByInstitution(
-            $institutions->pluck('id')->map(fn ($id) => (int) $id)->all()
+            $institutions->pluck('id')->map(fn ($id) => (int) $id)->all(),
+            $schoolId
         );
 
         return view('application.edit', [
@@ -460,7 +519,7 @@ class ApplicationController extends Controller
             'students' => $students,
             'allStudentsForInstitution' => $studentsForInstitution,
             'institutions' => $institutions,
-            'periods' => $this->periodOptions(),
+            'periods' => $this->periodOptions($schoolId),
             'institutionPeriods' => $institutionPeriods,
             'statuses' => $this->statusOptions(),
             'canSetStudentAccess' => $role !== 'student',
@@ -468,10 +527,15 @@ class ApplicationController extends Controller
         ]);
     }
 
-    public function update(Request $request, int $id): RedirectResponse
+    public function update(Request $request, string $school, int $id): RedirectResponse
     {
-        $application = Application::findOrFail($id);
-        $viewRecord = DB::table('application_details_view')->where('id', $id)->first();
+        $schoolId = $this->schoolIdOrFail();
+
+        $application = Application::where('school_id', $schoolId)->findOrFail($id);
+        $viewRecord = DB::table('application_details_view')
+            ->where('id', $id)
+            ->where('school_id', $schoolId)
+            ->first();
         abort_if(!$viewRecord, 404);
 
         $role = session('role');
@@ -487,9 +551,18 @@ class ApplicationController extends Controller
 
         $rules = [
             'student_ids' => 'required|array|min:1',
-            'student_ids.*' => 'distinct|exists:students,id',
-            'institution_id' => 'required|exists:institutions,id',
-            'period_id' => 'required|exists:periods,id',
+            'student_ids.*' => [
+                'distinct',
+                Rule::exists('students', 'id')->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
+            'institution_id' => [
+                'required',
+                Rule::exists('institutions', 'id')->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
+            'period_id' => [
+                'required',
+                Rule::exists('periods', 'id')->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
             'status' => ['required', Rule::in($statuses)],
             'submitted_at' => 'required|date',
             'notes' => 'nullable|string',
@@ -520,7 +593,8 @@ class ApplicationController extends Controller
         $applyAll = $role !== 'student' && $request->boolean('apply_all');
 
         if (!$applyAll) {
-            $existing = Application::where('institution_id', $application->institution_id)
+            $existing = Application::where('school_id', $schoolId)
+                ->where('institution_id', $application->institution_id)
                 ->whereIn('student_id', $selectedStudentIds)
                 ->pluck('student_id')
                 ->all();
@@ -532,7 +606,8 @@ class ApplicationController extends Controller
             }
         }
 
-        $targetQuery = Application::where('institution_id', $application->institution_id);
+        $targetQuery = Application::where('school_id', $schoolId)
+            ->where('institution_id', $application->institution_id);
         if (!$applyAll) {
             $targetQuery->whereIn('student_id', $selectedStudentIds);
         }
@@ -541,7 +616,8 @@ class ApplicationController extends Controller
         $targetIds = $targetApplications->pluck('id')->all();
 
         foreach ($targetApplications as $target) {
-            $duplicate = Application::where('student_id', $target->student_id)
+            $duplicate = Application::where('school_id', $schoolId)
+                ->where('student_id', $target->student_id)
                 ->where('institution_id', $validated['institution_id'])
                 ->where('period_id', $validated['period_id'])
                 ->whereNotIn('id', $targetIds)
@@ -572,15 +648,20 @@ class ApplicationController extends Controller
             $updateData['student_access'] = $studentAccess;
         }
 
-        Application::whereIn('id', $targetIds)->update($updateData);
+        Application::where('school_id', $schoolId)->whereIn('id', $targetIds)->update($updateData);
 
-        return redirect('/applications/' . $id . '/read/')->with('status', 'Application updated successfully.');
+        return redirect($this->schoolRoute('applications/' . $id . '/read'))->with('status', 'Application updated successfully.');
     }
 
-    public function destroy(int $id): RedirectResponse
+    public function destroy(string $school, int $id): RedirectResponse
     {
-        $application = Application::findOrFail($id);
-        $viewRecord = DB::table('application_details_view')->where('id', $id)->first();
+        $schoolId = $this->schoolIdOrFail();
+
+        $application = Application::where('school_id', $schoolId)->findOrFail($id);
+        $viewRecord = DB::table('application_details_view')
+            ->where('id', $id)
+            ->where('school_id', $schoolId)
+            ->first();
         abort_if(!$viewRecord, 404);
 
         $role = session('role');
@@ -594,6 +675,6 @@ class ApplicationController extends Controller
 
         $application->delete();
 
-        return redirect('/applications')->with('status', 'Application deleted successfully.');
+        return redirect($this->schoolRoute('applications'))->with('status', 'Application deleted successfully.');
     }
 }

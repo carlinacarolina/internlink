@@ -5,7 +5,7 @@
 @section('content')
 <h1>Update Institution</h1>
 @include('institution.form', [
-    'action' => "/institutions/{$institution->id}",
+    'action' => $schoolRoute('institutions/' . $institution->id),
     'method' => 'PUT',
     'institution' => $institution,
     'cities' => $cities,
