@@ -17,12 +17,16 @@ class Application extends Model
         'status',
         'student_access',
         'submitted_at',
+        'planned_start_date',
+        'planned_end_date',
         'notes',
     ];
 
     protected $casts = [
         'student_access' => 'boolean',
         'submitted_at' => 'datetime',
+        'planned_start_date' => 'date',
+        'planned_end_date' => 'date',
     ];
 
     public function school()

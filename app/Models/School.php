@@ -14,9 +14,13 @@ class School extends Model
         'code',
         'name',
         'address',
+        'city',
+        'postal_code',
         'phone',
         'email',
         'website',
+        'principal_name',
+        'principal_nip',
     ];
 
     protected static function booted(): void

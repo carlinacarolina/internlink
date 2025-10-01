@@ -148,6 +148,8 @@ class SchoolController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],
             'address' => ['required', 'string', 'max:1000'],
+            'city' => ['nullable', 'string', 'max:100'],
+            'postal_code' => ['nullable', 'string', 'max:20'],
             'phone' => [
                 'required',
                 'string',
@@ -157,15 +159,21 @@ class SchoolController extends Controller
             ],
             'email' => ['required', 'email', 'max:255', Rule::unique('schools', 'email')->ignore($schoolId)],
             'website' => ['nullable', 'url', 'max:255'],
+            'principal_name' => ['nullable', 'string', 'max:150'],
+            'principal_nip' => ['nullable', 'string', 'max:50'],
         ]);
 
         $validated['name'] = trim($validated['name']);
         $validated['address'] = trim($validated['address']);
+        $validated['city'] = isset($validated['city']) ? trim($validated['city']) : null;
+        $validated['postal_code'] = isset($validated['postal_code']) ? trim($validated['postal_code']) : null;
         $validated['phone'] = preg_replace('/\s+/', ' ', trim($validated['phone']));
         $validated['email'] = strtolower(trim($validated['email']));
         $validated['website'] = isset($validated['website']) && $validated['website'] !== ''
             ? Str::of($validated['website'])->trim()->toString()
             : null;
+        $validated['principal_name'] = isset($validated['principal_name']) ? trim($validated['principal_name']) : null;
+        $validated['principal_nip'] = isset($validated['principal_nip']) ? trim($validated['principal_nip']) : null;
 
         return $validated;
     }

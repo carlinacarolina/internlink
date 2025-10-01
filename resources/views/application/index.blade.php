@@ -49,6 +49,8 @@
                 <th scope="col">Term</th>
                 <th scope="col">Status Application</th>
                 <th scope="col">Student Access</th>
+                <th scope="col">Planned Start</th>
+                <th scope="col">Planned End</th>
                 <th scope="col">Submitted At</th>
                 <th scope="col">Actions</th>
             </tr>
@@ -63,6 +65,8 @@
                 <td>{{ $application->period_term }}</td>
                 <td>{{ ucwords(str_replace('_', ' ', $application->status)) }}</td>
                 <td>{{ $application->student_access ? 'True' : 'False' }}</td>
+                <td>{{ $application->planned_start_date ? \Illuminate\Support\Carbon::parse($application->planned_start_date)->format('Y-m-d') : '—' }}</td>
+                <td>{{ $application->planned_end_date ? \Illuminate\Support\Carbon::parse($application->planned_end_date)->format('Y-m-d') : '—' }}</td>
                 <td>{{ \Illuminate\Support\Carbon::parse($application->submitted_at)->format('Y-m-d') }}</td>
                 <td class="text-nowrap">
                     <a href="{{ $schoolRoute('applications/' . $application->id . '/read') }}" class="btn btn-sm btn-outline-secondary">Read</a>
@@ -76,7 +80,7 @@
             </tr>
         @empty
             <tr>
-                <td colspan="9" class="text-center">No applications found.</td>
+                <td colspan="11" class="text-center">No applications found.</td>
             </tr>
         @endforelse
         </tbody>

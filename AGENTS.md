@@ -50,6 +50,7 @@ See `agents/auth.md` for detailed guidance on these flows.
 1. CRUD Application
 2. CRUD Internship
 3. CRUD Monitoring
+4. Major Staff Contacts
 
 **Settings**
 

@@ -76,15 +76,22 @@
                 'icon' => 'bi-mortarboard',
                 'patterns' => [$basePrefix . 'students*'],
             ],
-            [
-                'label' => 'Supervisors',
-                'href' => $schoolUrl('supervisors'),
-                'icon' => 'bi-people',
-                'patterns' => [$basePrefix . 'supervisors*'],
-            ],
-            [
-                'label' => 'Admins',
-                'href' => $schoolUrl('admins'),
+        [
+            'label' => 'Supervisors',
+            'href' => $schoolUrl('supervisors'),
+            'icon' => 'bi-people',
+            'patterns' => [$basePrefix . 'supervisors*'],
+        ],
+        [
+            'label' => 'Major Contacts',
+            'href' => $schoolUrl('major-contacts'),
+            'icon' => 'bi-person-lines-fill',
+            'patterns' => [$basePrefix . 'major-contacts*'],
+            'roles' => ['admin', 'developer'],
+        ],
+        [
+            'label' => 'Admins',
+            'href' => $schoolUrl('admins'),
                 'icon' => 'bi-shield-lock',
                 'patterns' => [$basePrefix . 'admins*'],
                 'roles' => ['admin', 'developer'],

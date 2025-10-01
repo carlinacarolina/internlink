@@ -23,6 +23,12 @@
         <dt class="col-sm-3">Address</dt>
         <dd class="col-sm-9">{{ $school->address }}</dd>
 
+        <dt class="col-sm-3">City</dt>
+        <dd class="col-sm-9">{{ $school->city ?? '—' }}</dd>
+
+        <dt class="col-sm-3">Postal Code</dt>
+        <dd class="col-sm-9">{{ $school->postal_code ?? '—' }}</dd>
+
         <dt class="col-sm-3">Phone</dt>
         <dd class="col-sm-9">{{ $school->phone }}</dd>
 
@@ -37,6 +43,12 @@
                 —
             @endif
         </dd>
+
+        <dt class="col-sm-3">Principal Name</dt>
+        <dd class="col-sm-9">{{ $school->principal_name ?? '—' }}</dd>
+
+        <dt class="col-sm-3">Principal NIP</dt>
+        <dd class="col-sm-9">{{ $school->principal_nip ?? '—' }}</dd>
 
         <dt class="col-sm-3">Created At</dt>
         <dd class="col-sm-9">{{ $school->created_at }}</dd>

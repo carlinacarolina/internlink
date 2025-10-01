@@ -65,6 +65,8 @@ The CRUD Application is used to perform operations on the **application** table.
    * Period (Dropdown) (Tom Select) (format: "{year}: {term}" – show only after Institution is chosen and list periods linked to that institution)
    * Status Application (Dropdown, no Tom Select)
    * Student Access (Radio: True / False / Any) (Display the input only if the role is not a student)
+   * Planned Start Date (Date)
+   * Planned End Date (Date)
    * Submitted At (Date)
    * Notes (Textarea)
    * Cancel (Button)
@@ -76,6 +78,9 @@ The CRUD Application is used to perform operations on the **application** table.
    * Additional Student Name dropdown, make sure that the selected name does not appear again in the dropdown menu.
    * Institution Name works the same way.
    * Period dropdown remains hidden until Institution is selected and must only list periods that belong to the chosen institution (based on linked quotas).
+   * Planned dates are optional, but when both are provided the end date must not precede the start date. The schedule is used in the generated PDF letter.
+   * All selected students must have the same major; the UI should block mismatches before submission.
+   * Creation is blocked if the selected major does not have a staff contact assignment. Surface a clear warning to the user.
 
 4. **Cancel** button navigates back.  
 5. **Save** button stores the new data.  
@@ -116,13 +121,20 @@ Application details displayed as:
 * Period Term  
 * Status Application  
 * Student Access  
+* Planned Start Date  
+* Planned End Date  
 * Submitted At  
 * Notes  
+* Staff Contact Name  
+* Staff Contact Email  
+* Staff Contact Phone  
+* Staff Contact Supervisor Number  
 
 ### PDF Utilities
 * Detail page provides a `Download PDF` button that performs a direct file download via `/{school_code}/applications/{id}/pdf/print`.
 * The printable layout is generated from the shared Tailwind template used by both the inline PDF endpoint and the download, ensuring visual parity.
 * Access `/{school_code}/applications/{id}/pdf` to inspect the generated PDF in the browser viewer.
+* The PDF includes the school header, planned schedule, staff contact, and the list of all students who share the major/institution/period combination; ensure the underlying data stays in sync.
 
 ---
 
@@ -137,6 +149,8 @@ Application details displayed as:
    * Period (Dropdown) (Tom Select) (format: "{year}: {term}" – show only after Institution is chosen and list periods linked to that institution)
    * Status Application (Dropdown, no Tom Select)
    * Student Access (Radio: True / False / Any) (Display the input only if the role is not a student)
+   * Planned Start Date (Date)
+   * Planned End Date (Date)
    * Submitted At (Date)
    * Notes (Textarea)
    * Cancel (Button)
@@ -151,6 +165,8 @@ Application details displayed as:
    * If all Student Names from the institution are already selected → the + button becomes disabled.
    * Period shows the year and term, not the ID, Database still stores the ID.
    * Period dropdown stays hidden until an institution is selected and must only list periods available for that institution.
+   * Planned Start and End Date follow the same validation rules as Create.
+   * Updates are blocked when the resulting selection mixes majors or when the major lacks a staff contact assignment.
 
 4. **Cancel** button navigates back.  
 5. **Save** button stores changes.  
@@ -171,6 +187,9 @@ Delete records through the **Delete** button in the table at `/{school_code}/app
 - `notes` are optional text, but the field should accept null when not provided.  
 - When creating multiple records via the bulk helpers, enforce that every selected student belongs to the same school and that each resulting application still meets the uniqueness constraint.  
 - Moving an application into an active status triggers quota validation and the “max 3 active per student per period” rule, so the UI must surface violations before saving.
+- `planned_start_date` and `planned_end_date` are optional; when both exist ensure the end date is on or after the start date.
+- Every participating student must have a major and all selected students must share the same one.
+- A staff contact assignment per major is mandatory; reject create/update when the major is missing an assignment.
 
 ---
 

@@ -65,14 +65,18 @@ CRUD School is used to manage rows in the **schools** table and the **school_det
 2. Inputs:  
    * School Name (text, max 150 chars)  
    * Address (textarea, max 1000 chars)  
+   * City (text, max 100 chars)  
+   * Postal Code (text, max 20 chars)  
    * Phone (text, accepts digits, spaces, `+`, `(`, `)`, `-`, max 30 chars)  
    * Email (email)  
    * Website (url, optional)
+   * Principal Name (text, max 150 chars)
+   * Principal NIP (text, max 50 chars)
    * Invite Code
 
 3. Notes:  
    * ID is not an input field.  
-   * All fields except Website are required.  
+   * All fields except Website, City, Postal Code, Principal Name, and Principal NIP are required.  
    * Phone and Email values must be unique.  
    * School code is generated automatically when the record is saved.  
 
@@ -88,9 +92,13 @@ School details are displayed as:
 * Name: {value}  
 * Invite Code: {value}  
 * Address: {value}  
+* City: {value or `—`}  
+* Postal Code: {value or `—`}  
 * Phone: {value}  
 * Email: {value}  
 * Website: {value or `—`}  
+* Principal Name: {value or `—`}  
+* Principal NIP: {value or `—`}  
 * Created At: {value}  
 * Updated At: {value}  
 
@@ -126,16 +134,20 @@ Action buttons on this page: **Update** and **Delete**.
 
 * **Name**: required, string, max 150.  
 * **Address**: required, string, max 1000.  
+* **City**: optional, string, max 100.  
+* **Postal Code**: optional, string, max 20.  
 * **Phone**: required, unique, string, max 30, accepts numbers, spaces, `+`, `(`, `)`, `-`.  
 * **Email**: required, unique, valid email, max 255.  
 * **Website**: optional, valid URL, max 255.  
+* **Principal Name**: optional, string, max 150.  
+* **Principal NIP**: optional, string, max 50.  
 * **Code**: generated automatically; must remain unique per school.  
 
 ---
 
 ## Database Notes
 
-* Table: `app.schools` with columns `id`, `code`, `name`, `address`, `phone`, `email`, `website`, `created_at`, `updated_at`.  
+* Table: `app.schools` with columns `id`, `code`, `name`, `address`, `city`, `postal_code`, `phone`, `email`, `website`, `principal_name`, `principal_nip`, `created_at`, `updated_at`.  
 * Trigger: `trg_schools_updated_at` keeps `updated_at` in sync.  
 * View: `school_details_view` used for all read/list operations and now includes the `code` column.  
 * Code, Phone, Email, and Name columns are unique to keep the table in 3NF and avoid duplicate records.  

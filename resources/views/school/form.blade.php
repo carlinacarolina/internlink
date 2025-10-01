@@ -17,6 +17,16 @@
     </div>
 
     <div class="col-md-6">
+        <label class="form-label" for="school-city">City</label>
+        <input type="text" name="city" id="school-city" class="form-control" value="{{ old('city', optional($school)->city) }}" maxlength="100">
+    </div>
+
+    <div class="col-md-6">
+        <label class="form-label" for="school-postal-code">Postal Code</label>
+        <input type="text" name="postal_code" id="school-postal-code" class="form-control" value="{{ old('postal_code', optional($school)->postal_code) }}" maxlength="20">
+    </div>
+
+    <div class="col-md-6">
         <label class="form-label" for="school-phone">Phone</label>
         <input type="text" name="phone" id="school-phone" class="form-control" value="{{ old('phone', optional($school)->phone) }}" inputmode="tel" maxlength="30" required>
         <div class="form-text">Format example: +62 812-3456-7890</div>
@@ -30,6 +40,16 @@
     <div class="col-12">
         <label class="form-label" for="school-website">Website</label>
         <input type="url" name="website" id="school-website" class="form-control" value="{{ old('website', optional($school)->website) }}" maxlength="255" placeholder="https://example.sch.id">
+    </div>
+
+    <div class="col-md-6">
+        <label class="form-label" for="principal-name">Principal Name</label>
+        <input type="text" name="principal_name" id="principal-name" class="form-control" value="{{ old('principal_name', optional($school)->principal_name) }}" maxlength="150">
+    </div>
+
+    <div class="col-md-6">
+        <label class="form-label" for="principal-nip">Principal NIP</label>
+        <input type="text" name="principal_nip" id="principal-nip" class="form-control" value="{{ old('principal_nip', optional($school)->principal_nip) }}" maxlength="50">
     </div>
 
     <div class="col-12 d-flex gap-2">

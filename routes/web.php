@@ -6,6 +6,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DeveloperController;
 use App\Http\Controllers\InstitutionController;
 use App\Http\Controllers\InternshipController;
+use App\Http\Controllers\MajorStaffAssignmentController;
 use App\Http\Controllers\MetaController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\MonitoringLogController;
@@ -100,6 +101,15 @@ Route::middleware('auth.session')->group(function () {
                 Route::put('{id}', [SupervisorController::class, 'update']);
                 Route::delete('{id}', [SupervisorController::class, 'destroy']);
             });
+        });
+
+        Route::prefix('major-contacts')->group(function () {
+            Route::get('/', [MajorStaffAssignmentController::class, 'index']);
+            Route::get('/create', [MajorStaffAssignmentController::class, 'create']);
+            Route::post('/', [MajorStaffAssignmentController::class, 'store']);
+            Route::get('{id}/update', [MajorStaffAssignmentController::class, 'edit']);
+            Route::put('{id}', [MajorStaffAssignmentController::class, 'update']);
+            Route::delete('{id}', [MajorStaffAssignmentController::class, 'destroy']);
         });
 
         Route::prefix('admins')->group(function () {

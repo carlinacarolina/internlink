@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Application;
+use App\Models\MajorStaffAssignment;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -220,7 +221,7 @@ class ApplicationController extends Controller
             })
             ->where('sdv.school_id', $schoolId)
             ->whereNull('apps.id')
-            ->select('sdv.id', 'sdv.name')
+            ->select('sdv.id', 'sdv.name', 'sdv.major')
             ->orderBy('sdv.name')
             ->get();
 
@@ -237,7 +238,7 @@ class ApplicationController extends Controller
             }
 
             $students = DB::table('student_details_view')
-                ->select('id', 'name')
+                ->select('id', 'name', 'major')
                 ->where('id', $studentId)
                 ->where('school_id', $schoolId)
                 ->orderBy('name')
@@ -260,6 +261,12 @@ class ApplicationController extends Controller
             $schoolId
         );
 
+        $majorStaff = DB::table('major_staff_details_view')
+            ->select('major', 'major_slug', 'name', 'email', 'phone', 'supervisor_number')
+            ->where('school_id', $schoolId)
+            ->orderBy('major')
+            ->get();
+
         return view('application.create', [
             'students' => $students,
             'studentsWithoutApplication' => $studentsWithoutApplication,
@@ -269,6 +276,7 @@ class ApplicationController extends Controller
             'statuses' => $this->statusOptions(),
             'canSetStudentAccess' => $role !== 'student',
             'isStudent' => $role === 'student',
+            'majorStaff' => $majorStaff,
         ]);
     }
 
@@ -297,6 +305,8 @@ class ApplicationController extends Controller
             'submitted_at' => 'required|date',
             'notes' => 'nullable|string',
             'apply_missing' => 'nullable|boolean',
+            'planned_start_date' => 'nullable|date',
+            'planned_end_date' => ['nullable', 'date', 'after_or_equal:planned_start_date'],
         ];
 
         if ($role === 'student') {
@@ -342,26 +352,111 @@ class ApplicationController extends Controller
         $institutionId = (int) $validated['institution_id'];
         $periodId = (int) $validated['period_id'];
 
+        if (empty($selectedStudentIds)) {
+            return back()->withErrors([
+                'student_ids' => 'Select at least one student.',
+            ])->withInput();
+        }
+
+        $initialRecords = DB::table('student_details_view')
+            ->select('id', 'major')
+            ->where('school_id', $schoolId)
+            ->whereIn('id', $selectedStudentIds)
+            ->get();
+
+        if ($initialRecords->count() !== count($selectedStudentIds)) {
+            return back()->withErrors([
+                'student_ids' => 'One or more students could not be found.',
+            ])->withInput();
+        }
+
+        $missingMajor = $initialRecords->first(fn ($record) => trim((string) $record->major) === '');
+        if ($missingMajor) {
+            return back()->withErrors([
+                'student_ids' => 'All students must have a major before creating an application.',
+            ])->withInput();
+        }
+
+        $initialMajorSlug = $initialRecords
+            ->map(fn ($record) => MajorStaffAssignment::slugFromMajor((string) $record->major))
+            ->unique();
+
+        if ($initialMajorSlug->count() !== 1) {
+            return back()->withErrors([
+                'student_ids' => 'Selected students must belong to the same major.',
+            ])->withInput();
+        }
+
+        $majorSlug = $initialMajorSlug->first();
+
         $targetStudentIds = $selectedStudentIds;
 
         if ($role !== 'student' && $request->boolean('apply_missing')) {
-            $missingIds = DB::table('student_details_view as sdv')
+            $missingStudents = DB::table('student_details_view as sdv')
                 ->leftJoin('applications as apps', function ($join) use ($schoolId) {
                     $join->on('apps.student_id', '=', 'sdv.id')
                         ->where('apps.school_id', '=', $schoolId);
                 })
                 ->where('sdv.school_id', $schoolId)
                 ->whereNull('apps.id')
-                ->pluck('sdv.id')
+                ->select('sdv.id', 'sdv.major')
+                ->get();
+
+            $eligibleMissing = $missingStudents
+                ->filter(fn ($student) => trim((string) $student->major) !== '' && MajorStaffAssignment::slugFromMajor((string) $student->major) === $majorSlug)
+                ->pluck('id')
                 ->map(fn ($id) => (int) $id)
                 ->all();
 
-            $targetStudentIds = array_values(array_unique(array_merge($targetStudentIds, $missingIds)));
+            $targetStudentIds = array_values(array_unique(array_merge($targetStudentIds, $eligibleMissing)));
         }
 
         if (empty($targetStudentIds)) {
             return back()->withErrors([
                 'student_ids' => 'Select at least one student.',
+            ])->withInput();
+        }
+
+        $allStudentRecords = DB::table('student_details_view')
+            ->select('id', 'major')
+            ->where('school_id', $schoolId)
+            ->whereIn('id', $targetStudentIds)
+            ->get();
+
+        if ($allStudentRecords->count() !== count($targetStudentIds)) {
+            return back()->withErrors([
+                'student_ids' => 'One or more selected students are invalid for this school.',
+            ])->withInput();
+        }
+
+        $invalidMajor = $allStudentRecords->first(fn ($record) => trim((string) $record->major) === '');
+        if ($invalidMajor) {
+            return back()->withErrors([
+                'student_ids' => 'All selected students must have a major.',
+            ])->withInput();
+        }
+
+        $allMajorSlugs = $allStudentRecords
+            ->map(fn ($record) => MajorStaffAssignment::slugFromMajor((string) $record->major))
+            ->unique();
+
+        if ($allMajorSlugs->count() !== 1) {
+            return back()->withErrors([
+                'student_ids' => 'All selected students must belong to the same major.',
+            ])->withInput();
+        }
+
+        $majorSlug = $allMajorSlugs->first();
+        $majorName = $allStudentRecords->pluck('major')->first();
+
+        $staffAssignment = DB::table('major_staff_assignments')
+            ->where('school_id', $schoolId)
+            ->where('major_slug', $majorSlug)
+            ->first();
+
+        if (!$staffAssignment) {
+            return back()->withErrors([
+                'student_ids' => 'No staff contact is assigned for the selected major (' . $majorName . ').',
             ])->withInput();
         }
 
@@ -394,6 +489,8 @@ class ApplicationController extends Controller
                     'status' => $validated['status'],
                     'student_access' => $studentAccess,
                     'submitted_at' => $validated['submitted_at'],
+                    'planned_start_date' => $validated['planned_start_date'] ?? null,
+                    'planned_end_date' => $validated['planned_end_date'] ?? null,
                     'notes' => $validated['notes'] ?? null,
                 ]);
             }
@@ -448,9 +545,25 @@ class ApplicationController extends Controller
 
     private function renderPdfHtml(object $application, $generatedAt): string
     {
+        $school = DB::table('school_details_view')->where('id', $application->school_id)->first();
+        abort_if(!$school, 404, 'School context missing.');
+
+        $majorSlug = MajorStaffAssignment::slugFromMajor((string) $application->student_major);
+
+        $peers = DB::table('application_details_view')
+            ->where('school_id', $application->school_id)
+            ->where('institution_id', $application->institution_id)
+            ->where('period_id', $application->period_id)
+            ->orderBy('student_name')
+            ->get()
+            ->filter(fn ($row) => MajorStaffAssignment::slugFromMajor((string) $row->student_major) === $majorSlug)
+            ->values();
+
         return view('application.pdf', [
             'application' => $application,
             'generatedAt' => $generatedAt,
+            'school' => $school,
+            'students' => $peers,
         ])->render();
     }
 
@@ -492,7 +605,7 @@ class ApplicationController extends Controller
         }
 
         $studentsForInstitution = DB::table('application_details_view')
-            ->select('student_id', 'student_name')
+            ->select('student_id', 'student_name', 'student_major')
             ->where('institution_id', $application->institution_id)
             ->where('school_id', $schoolId)
             ->distinct()
@@ -514,6 +627,12 @@ class ApplicationController extends Controller
             $schoolId
         );
 
+        $majorStaff = DB::table('major_staff_details_view')
+            ->select('major', 'major_slug', 'name', 'email', 'phone', 'supervisor_number')
+            ->where('school_id', $schoolId)
+            ->orderBy('major')
+            ->get();
+
         return view('application.edit', [
             'application' => $application,
             'students' => $students,
@@ -524,6 +643,7 @@ class ApplicationController extends Controller
             'statuses' => $this->statusOptions(),
             'canSetStudentAccess' => $role !== 'student',
             'isStudent' => $role === 'student',
+            'majorStaff' => $majorStaff,
         ]);
     }
 
@@ -567,6 +687,8 @@ class ApplicationController extends Controller
             'submitted_at' => 'required|date',
             'notes' => 'nullable|string',
             'apply_all' => 'nullable|boolean',
+            'planned_start_date' => 'nullable|date',
+            'planned_end_date' => ['nullable', 'date', 'after_or_equal:planned_start_date'],
         ];
 
         if ($role !== 'student') {
@@ -630,6 +752,51 @@ class ApplicationController extends Controller
             }
         }
 
+        $targetStudentIdsFinal = $targetApplications->pluck('student_id')->map(fn ($id) => (int) $id)->all();
+
+        $studentRecords = DB::table('student_details_view')
+            ->select('id', 'major')
+            ->where('school_id', $schoolId)
+            ->whereIn('id', $targetStudentIdsFinal)
+            ->get();
+
+        if ($studentRecords->count() !== count($targetStudentIdsFinal)) {
+            return back()->withErrors([
+                'student_ids' => 'One or more students are invalid for this school.',
+            ])->withInput();
+        }
+
+        $missingMajor = $studentRecords->first(fn ($record) => trim((string) $record->major) === '');
+        if ($missingMajor) {
+            return back()->withErrors([
+                'student_ids' => 'All selected students must have a major.',
+            ])->withInput();
+        }
+
+        $majorSlugs = $studentRecords
+            ->map(fn ($record) => MajorStaffAssignment::slugFromMajor((string) $record->major))
+            ->unique();
+
+        if ($majorSlugs->count() !== 1) {
+            return back()->withErrors([
+                'student_ids' => 'Selected students must share the same major.',
+            ])->withInput();
+        }
+
+        $majorSlug = $majorSlugs->first();
+        $majorName = $studentRecords->pluck('major')->first();
+
+        $staffAssignment = DB::table('major_staff_assignments')
+            ->where('school_id', $schoolId)
+            ->where('major_slug', $majorSlug)
+            ->first();
+
+        if (!$staffAssignment) {
+            return back()->withErrors([
+                'student_ids' => 'No staff contact is assigned for the selected major (' . $majorName . ').',
+            ])->withInput();
+        }
+
         $studentAccess = $application->student_access;
         if ($role !== 'student') {
             $input = $validated['student_access'] ?? 'any';
@@ -641,6 +808,8 @@ class ApplicationController extends Controller
             'period_id' => $validated['period_id'],
             'status' => $validated['status'],
             'submitted_at' => $validated['submitted_at'],
+            'planned_start_date' => $validated['planned_start_date'] ?? null,
+            'planned_end_date' => $validated['planned_end_date'] ?? null,
             'notes' => $validated['notes'] ?? null,
         ];
 
