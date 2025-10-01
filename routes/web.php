@@ -7,6 +7,7 @@ use App\Http\Controllers\DeveloperController;
 use App\Http\Controllers\InstitutionController;
 use App\Http\Controllers\InternshipController;
 use App\Http\Controllers\MetaController;
+use App\Http\Controllers\SettingController;
 use App\Http\Controllers\MonitoringLogController;
 use App\Http\Controllers\SchoolController;
 use App\Http\Controllers\StudentController;
@@ -67,6 +68,15 @@ Route::middleware('auth.session')->group(function () {
         Route::get('/', function () {
             return view('dashboard');
         })->name('school.dashboard');
+
+        Route::prefix('settings')->name('settings.')->group(function () {
+            Route::get('/', [SettingController::class, 'redirect'])->name('index');
+            Route::get('/profile', [SettingController::class, 'editProfile'])->name('profile');
+            Route::put('/profile', [SettingController::class, 'updateProfile'])->name('profile.update');
+            Route::get('/security', [SettingController::class, 'editSecurity'])->name('security');
+            Route::put('/security', [SettingController::class, 'updateSecurity'])->name('security.update');
+            Route::get('/environments', [SettingController::class, 'environments'])->name('environments');
+        });
 
         Route::prefix('students')->group(function () {
             Route::get('/', [StudentController::class, 'index']);

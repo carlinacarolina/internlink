@@ -51,6 +51,13 @@ See `agents/auth.md` for detailed guidance on these flows.
 2. CRUD Internship
 3. CRUD Monitoring
 
+**Settings**
+
+1. Account Settings
+   - Profile forms live at `/{school_code}/settings/profile` and let users update personal data (students & supervisors include their role-specific fields).
+   - Security updates live at `/{school_code}/settings/security` with old/new/confirm password inputs; success immediately rotates credentials.
+   - Environments placeholder remains at `/{school_code}/settings/environments` and is limited to admin/developer roles.
+
 ---
 
 Check the files in the **migrations** folder to view the database structure.

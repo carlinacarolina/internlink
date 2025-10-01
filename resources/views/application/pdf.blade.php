@@ -43,25 +43,25 @@
             <div class="flex items-center h-full">
                 <img src="{{ public_path('images/applications/west-java-logo.png') }}" alt="" class="h-full w-auto max-w-none">
             </div>
-            <div class="flex justify-center items-center text-base flex-col flex-1 h-full">
+            <div class="flex justify-center items-center text-sm flex-col flex-1 h-full">
                 <p>PEMERINTAH DAERAH PROVINSI JAWAB BARAT</p>
                 <p><b>DINAS PENDIDIKAN</b></p>
                 <p>CABANG DINAS PENDIDIKAN WILAYAH VII</p>
                 <p><b>SEKOLAH MENENGAH KEJURUAN NEGERI 13</b></p>
-                <p class="text-sm">Jalan Soekarno Hatta Km. 10 Kel. Jatisari Kec. Buahbatu</p>
-                <p class="text-sm">Telepon (022) 7318960 - Bandung 40286 Email: smk13bdg@gmail.com</p>
-                <p class="text-sm">Home page: http://www.smkn13.sch.id</p>
+                <p class="text-[0.65rem]">Jalan Soekarno Hatta Km. 10 Kel. Jatisari Kec. Buahbatu</p>
+                <p class="text-[0.65rem]">Telepon (022) 7318960 - Bandung 40286 Email: smk13bdg@gmail.com</p>
+                <p class="text-[0.65rem]">Home page: http://www.smkn13.sch.id</p>
             </div>
         </div>
     </header>
-    <main class="text-sm">
+    <main class="text-[0.65rem] flex flex-col flex-">
         <div class="mb-9">
             <p>Nomor: Application/{{ $application->id }}/SMKN13BDG</p>
             <p>Lamp :-</p>
             <p>Hal : Pengajuan Praktik Kerja Lapangan (PKL) dan Uji Kompetensi (Ukom)</p>
         </div>
         <div class="mb-4">
-            <p class="text-base"><b>Yth. HRD PT EUREKA MERDEKA INDONESIA (SMKDEV) - EUDEKA</b></p>
+            <p class="text-sm"><b>Yth. HRD PT EUREKA MERDEKA INDONESIA (SMKDEV) - EUDEKA</b></p>
             <p>di</p>
             <p>Summarecon Bandung, Jl. Magna Barat Blok MD No.02, Rancabolang, Kec. Gedebage, Kota Bandung, Jawa Barat 40295 </p>
         </div>
@@ -103,8 +103,24 @@
         <div class="mb-4">
             <p>Berikut adalah kompetensi yang sudah diperoleh siswa sampai dengan semester IV: Menginstal Sistem Operasi, Pemrograman Dasar, Basis Data, Pemrograman Web, Pemrograman Berbasis Text, dan Pemrograman Perangkat Bergerak.</p>
         </div>
-        <div>
+        <div class="mb-4">
             <p>Sehubungan dengan hal tersebut kami mohon Bapak/Ibu berkenan dapat memberikan izin dengan mengirimkan surat balasan ke contact person di bawah. Demikian pengajuan ini kami sampaikan. Atas perhatian dan kerjasamanya, kami ucapkan terima kasih. </p>
+        </div>
+        <div class="mb-14 h-28 flex justify-between flex-col items-end">
+            <div>
+                <p>Bandung, 30 Juni 2025</p>
+                <p>Plt, Kepala SMKN 13 Bandung</p>
+            </div>
+            <div>
+                <p>Dr. Haji Yani Haryani, M.M.Pd</p>
+                <p>NIP: 196602281997022002</p>
+            </div>
+        </div>
+        <div class="flex flex-col flex-1 justify-end">
+            <p>Contact person:</p>
+            <p>Nur Fauziyah Rahmawati, S.Pd. (Staf Hubin Humas Bidang PKL)</p>
+            <p>E-mail: smkn13bdghubinhumas@gmail.com</p>
+            <p>Tlp/wa: 082315075261</p>
         </div>
     </main>
 </body>

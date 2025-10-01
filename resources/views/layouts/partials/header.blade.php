@@ -23,7 +23,7 @@
         if ($student) {
             $photo = $student->photo;
             if ($hasSchool) {
-                $settingsUrl = $schoolUrl('students/' . $student->id . '/update');
+                $settingsUrl = $schoolUrl('settings/profile');
             }
         }
     } elseif ($role === 'supervisor') {
@@ -31,15 +31,17 @@
         if ($supervisor) {
             $photo = $supervisor->photo;
             if ($hasSchool) {
-                $settingsUrl = $schoolUrl('supervisors/' . $supervisor->id . '/update');
+                $settingsUrl = $schoolUrl('settings/profile');
             }
         }
     } elseif ($role === 'admin') {
         if ($hasSchool) {
-            $settingsUrl = $schoolUrl('admins/' . $userId . '/update');
+            $settingsUrl = $schoolUrl('settings/profile');
         }
     } elseif ($role === 'developer') {
-        $settingsUrl = route('developers.edit', ['id' => $userId]);
+        if ($hasSchool) {
+            $settingsUrl = $schoolUrl('settings/profile');
+        }
     }
 @endphp
 <header class="app-header navbar px-3">
