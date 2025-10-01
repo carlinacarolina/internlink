@@ -25,3 +25,11 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 setup_script.sh
+
+# Docker
+.docker/
+docker-compose.override.yml
+docker-compose.local.yml
+docker/postgres/backup/*.sql
+docker/postgres/data/
+*.log
