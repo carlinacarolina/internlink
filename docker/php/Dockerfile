@@ -16,7 +16,14 @@ RUN apk add --no-cache \
     nodejs \
     npm \
     git \
-    unzip
+    unzip \
+    chromium \
+    nss \
+    freetype \
+    freetype-dev \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont
 
 # Install PHP extensions
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
@@ -55,10 +62,13 @@ RUN composer install --no-dev --optimize-autoloader --no-interaction
 # Install Node dependencies and build assets
 RUN npm ci && npm run build
 
+# Install Puppeteer Chrome for PDF generation
+RUN npx puppeteer browsers install chrome-headless-shell
+
 # Set permissions
 RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 755 /var/www/html/storage \
-    && chmod -R 755 /var/www/html/bootstrap/cache \
+    && chmod -R 775 /var/www/html/storage \
+    && chmod -R 775 /var/www/html/bootstrap/cache \
     && mkdir -p /var/log/supervisor \
     && chown -R www-data:www-data /var/log/supervisor
 

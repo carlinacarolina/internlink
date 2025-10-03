@@ -29,7 +29,7 @@
     <style>
         @page {
             size: A4;
-            margin: 20mm;
+            margin: 10mm;
         }
         body {
             -webkit-print-color-adjust: exact;
@@ -37,7 +37,7 @@
         }
     </style>
 </head>
-<body class="font-sans h-screen flex flex-col text-[0.8rem]">
+<body class="font-sans h-screen flex flex-col">
 @php
     use Illuminate\Support\Carbon;
 
@@ -62,82 +62,96 @@
     $staffPhone = $application->staff_phone ?? '—';
     $staffNumber = $application->staff_supervisor_number ?? '—';
 @endphp
-    <header class="gap-4 h-44 border-b-4 flex-col border-black pb-3 mb-6">
-        <div class="flex justify-between items-center h-full">
-            <div class="flex items-center h-full">
-                <img src="{{ public_path('images/applications/west-java-logo.png') }}" alt="" class="h-full w-auto max-w-none">
+    <header class="gap-4 h-auto border-b-4 flex-col border-black pb-2 mb-2">
+        <div class="flex flex-row justify-between items-center h-full">
+            <div class="flex items-center h-auto">
+                <img src="{{ public_path('images/applications/west-java-logo.png') }}" alt="" class="h-32 w-auto max-w-none">
             </div>
-            <div class="flex justify-center items-center text-sm flex-col flex-1 h-full">
-                <p class="uppercase tracking-wide text-xs">{{ $school->name }}</p>
-                <p class="text-xs">{{ $school->address }}</p>
-                @if($cityLine)
-                    <p class="text-xs">{{ $cityLine }}</p>
-                @endif
-                @if($contactLines)
-                    <p class="text-xs">{{ $contactLines }}</p>
-                @endif
+            <div class="flex items-center text-base flex-col flex-1 h-auto leading-tight">
+                <p>PEMERINTAH DAERAH PROVINSI JAWA BARAT</p>
+                <p class="font-bold">DINAS PENDIDIKAN</p>
+                <p>CABANG DINAS PENDIDIKAN WILAYAH VII</p>
+                <p class="font-bold uppercase">{{ $school->name }}</p>
+                <p class="text-[0.8rem]">{{ $school->address }}</p>
+                <div class="flex flex-wrap justify-center gap-x-2 text-[0.8rem]">
+                    @if($school->phone)
+                        <p>Telepon {{ preg_replace('/[\s\-\+]/', '', $school->phone) }}</p>
+                    @endif
+                    @if($school->city)
+                        <p>{{ $school->city }}</p>
+                    @endif
+                    @if($school->postal_code)
+                        <p>{{ $school->postal_code }}</p>
+                    @endif
+                    @if($school->email)
+                        <p>Email: {{ $school->email }}</p>
+                    @endif
+                    @if($school->website)
+                        <p>Website: {{ $school->website }}</p>
+                    @endif
+                </div>
+
             </div>
         </div>
     </header>
-    <main class="flex flex-col flex-1 text-[0.75rem]">
-        <div class="mb-6">
-            <p>No: {{ sprintf('APP/%s/%s', str_pad($application->id, 4, '0', STR_PAD_LEFT), strtoupper($school->code)) }}</p>
-            <p>Subject: Internship Placement Request</p>
-            <p>Date: {{ $submittedDate }}</p>
+    <main class="flex flex-col flex-1 text-[0.8rem]">
+        <div class="mb-6 leading-tight">
+            <p>Nomor: {{ sprintf('APP/%s/%s', str_pad($application->id, 4, '0', STR_PAD_LEFT), strtoupper($school->code)) }}</p>
+            <p>Lampiran: - </p>
+            <p>Hal: Pengajuan Praktik Kerja Lapangan (PKL) dan Uji Kompetensi (Ukom)</p>
         </div>
-        <div class="mb-6">
-            <p class="font-semibold">To:</p>
-            <p class="font-semibold text-sm">{{ $application->institution_name }}</p>
+        <div class="mb-4 leading-tight">
+            <p class="font-bold text-base">YTH, HRD {{ $application->institution_name }}</p>
+            <p>di</p>
             <p>{{ $application->institution_address }}</p>
-            <p>{{ collect([$application->institution_city, $application->institution_province])->filter()->implode(', ') }}</p>
-            @if($application->institution_contact_name)
-                <p>Attn: {{ $application->institution_contact_name }}</p>
-            @endif
         </div>
-        <div class="mb-4 leading-relaxed">
-            <p>We kindly request your approval to place students from the <strong>{{ $application->student_major ?? '—' }}</strong> major at your esteemed institution for their internship program. Details of the proposed activity are provided below:</p>
+        <div class="mb-4 leading-tight">
+            <p>Dengan hormat, </p>
         </div>
-        <div class="mb-4">
-            <table class="mb-3">
+        <div class="mb-4 leading-tight">
+            <p>Berdasarkan pada kurikulum merdeka, bahwa siswa SMK tingkat akhir (kelas XII) harus melaksanakan Praktik Kerja Lapangan dan Uji Kompetensi (UKOM) sebagai salah satu syarat kelulusan. Oleh karena itu, kami mengajukan permohonan untuk melaksanakan kegiatan uji kompetensi bagi siswa kami sebagai berikut: </p>
+        </div>
+        <div class="mb-4 flex flex-col items-center">
+            <table class="mb-4 w-4/5 flex justify-center leading-tight">
                 <tr>
-                    <th class="text-left font-normal">Major</th>
+                    <th class="text-left font-normal">Kompetensi Keahlian</th>
                     <td>: {{ $application->student_major ?? '—' }}</td>
                 </tr>
                 <tr>
-                    <th class="text-left font-normal">Number of Students</th>
+                    <th class="text-left font-normal">Jumlah Siswa</th>
                     <td>: {{ $studentCount }}</td>
                 </tr>
                 <tr>
-                    <th class="text-left font-normal">Internship Schedule</th>
+                    <th class="text-left font-normal">Jadwal</th>
                     <td>: {{ $scheduleDisplay }}</td>
                 </tr>
             </table>
-            <table class="mb-4 border border-black border-collapse w-full">
+            <table class="border w-3/5 border-black border-collapse leading-tight">
                 <thead>
                     <tr>
-                        <th class="border border-black p-1 text-center w-12">No</th>
-                        <th class="border border-black p-1 text-center">Student Name</th>
-                        <th class="border border-black p-1 text-center">Student Number</th>
+                        <th class="border border-black text-center w-12">No</th>
+                        <th class="border border-black text-center">Student Name</th>
+                        <th class="border border-black text-center">Student Number</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach($students as $index => $student)
                         <tr>
-                            <td class="border border-black p-1 text-center">{{ $index + 1 }}</td>
-                            <td class="border border-black p-1">{{ $student->student_name }}</td>
+                            <td class="border border-black text-center">{{ $index + 1 }}</td>
+                            <td class="border border-black">{{ $student->student_name }}</td>
                             <td class="border border-black p-1 text-center">{{ $student->student_number ?? '—' }}</td>
                         </tr>
                     @endforeach
                 </tbody>
             </table>
         </div>
-        <div class="mb-4 leading-relaxed">
-            <p>We believe this internship will help our students strengthen their technical and professional competencies. We hope your organisation can support this request and provide further coordination if additional requirements are needed.</p>
+        <div class="mb-4 leading-tight">
+            <p>Berikut adalah kompetensi yang sudah diperoleh siswa sampai dengan semester IV: Menginstal Sistem Operasi, Pemrograman Dasar, Basis Data, Pemrograman Web, Pemrograman Berbasis Text, dan Pemrograman Perangkat Bergerak. </p>
         </div>
-        <div class="mb-4 leading-relaxed">
-            <p>Thank you for your kind attention and cooperation.</p>
+        <div class="mb-4 leading-tight">
+            <p>Sehubungan dengan hal tersebut kami mohon Bapak/Ibu berkenan dapat memberikan izin dengan mengirimkan surat balasan ke contact person di bawah. Demikian pengajuan ini kami sampaikan. Atas perhatian dan kerjasamanya, kami ucapkan terima kasih. </p>
         </div>
-        <div class="mb-12 h-28 flex flex-col justify-between items-end">
+        <div class="mb-12 h-28 flex flex-col justify-between items-end leading-tight">
             <div class="text-right">
                 <p>{{ $school->city ?? '________' }}, {{ $submittedDate }}</p>
                 <p>{{ $school->principal_name ? 'Principal,' : 'Principal' }}</p>
@@ -149,12 +163,11 @@
                 @endif
             </div>
         </div>
-        <div class="flex flex-col gap-1 mt-auto">
-            <p class="font-semibold">Contact Person:</p>
-            <p>Name: {{ $staffName }}</p>
-            <p>Email: {{ $staffEmail }}</p>
-            <p>Phone: {{ $staffPhone }}</p>
-            <p>Supervisor Number: {{ $staffNumber }}</p>
+        <div class="flex flex-col leading-tight">
+            <p class="italic font-semibold">Contact Person:</p>
+            <p>{{ $staffName }}</p>
+            <p><span class="italic">Email:</span> {{ $staffEmail }}</p>
+            <p>Telepon: {{ $staffPhone }}</p>
         </div>
     </main>
 </body>

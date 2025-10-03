@@ -47,7 +47,14 @@
                         </div>
                         <div class="col-12 col-md-6">
                             <label for="profile-major" class="form-label">Major</label>
-                            <input type="text" id="profile-major" name="major" class="form-control" value="{{ old('major', $formData['major']) }}" required>
+                            <select id="profile-major" name="major_id" class="form-select tom-select" required>
+                                <option value="">Select major</option>
+                                @foreach($majors as $major)
+                                    <option value="{{ $major->id }}" @selected(old('major_id', $formData['major_id']) == $major->id)>
+                                        {{ $major->name }}
+                                    </option>
+                                @endforeach
+                            </select>
                         </div>
                         <div class="col-12 col-md-6">
                             <label for="profile-class" class="form-label">Class</label>
@@ -72,7 +79,14 @@
                         </div>
                         <div class="col-12 col-md-6">
                             <label for="profile-department" class="form-label">Department</label>
-                            <input type="text" id="profile-department" name="department" class="form-control" value="{{ old('department', $formData['department']) }}" required>
+                            <select id="profile-department" name="department_id" class="form-select tom-select" required>
+                                <option value="">Select department</option>
+                                @foreach($majors as $major)
+                                    <option value="{{ $major->id }}" @selected(old('department_id', $formData['department_id']) == $major->id)>
+                                        {{ $major->name }}
+                                    </option>
+                                @endforeach
+                            </select>
                         </div>
                         <div class="col-12">
                             <label for="profile-notes" class="form-label">Notes</label>

@@ -16,6 +16,9 @@
                 <input type="hidden" name="{{ $param }}" value="{{ $value }}">
             @endforeach
         </form>
+        <a href="{{ $schoolRoute('applications/print-all') }}" class="btn btn-outline-success" title="Print all applications with under review or draft status">
+            Print All
+        </a>
         <button class="btn btn-outline-secondary position-relative" type="button" data-bs-toggle="offcanvas" data-bs-target="#applicationFilter" aria-controls="applicationFilter">
             Filter
             @if(count($filters))

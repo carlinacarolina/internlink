@@ -102,8 +102,8 @@
                                     —
                                 @endif
                             </dd>
-                            <dt class="col-sm-5">Institution Industry</dt>
-                            <dd class="col-sm-7">{{ $log->institution_industry ?? '—' }}</dd>
+                            <dt class="col-sm-5">Institution Industry For</dt>
+                            <dd class="col-sm-7">{{ $log->institution_industry_for_name ?? '—' }}</dd>
                             <dt class="col-sm-5">Institution Notes</dt>
                             <dd class="col-sm-7">{{ $log->institution_notes ?? '—' }}</dd>
                             <dt class="col-sm-5">Institution Contact Name</dt>

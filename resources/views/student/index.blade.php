@@ -47,7 +47,6 @@
     <table class="table table-hover align-middle">
         <thead>
             <tr>
-                <th scope="col">No</th>
                 <th scope="col">Name</th>
                 <th scope="col">Email</th>
                 <th scope="col">Phone</th>
@@ -56,22 +55,21 @@
                 <th scope="col">Major</th>
                 <th scope="col">Class</th>
                 <th scope="col">Batch</th>
-                <th scope="col" class="text-center">Actions</th>
+                <th scope="col" class="text-nowrap">Actions</th>
             </tr>
         </thead>
         <tbody>
         @forelse($students as $student)
             <tr>
-                <td>{{ $students->firstItem() + $loop->index }}</td>
                 <td>{{ $student->name }}</td>
                 <td>{{ $student->email }}</td>
                 <td>{{ $student->phone ?? '—' }}</td>
                 <td>{{ $student->student_number }}</td>
                 <td>{{ $student->national_sn }}</td>
-                <td>{{ $student->major }}</td>
-                <td>{{ $student->class }}</td>
-                <td>{{ $student->batch }}</td>
-                <td class="text-nowrap text-center">
+                <td>{{ $student->major ?? '—' }}</td>
+                <td>{{ $student->class ?? '—' }}</td>
+                <td>{{ $student->batch ?? '—' }}</td>
+                <td class="text-nowrap">
                     <a href="{{ $schoolRoute('students/' . $student->id . '/read') }}" class="btn btn-sm btn-outline-secondary">Read</a>
                     <a href="{{ $schoolRoute('students/' . $student->id . '/update') }}" class="btn btn-sm btn-warning">Update</a>
                     <form action="{{ $schoolRoute('students/' . $student->id) }}" method="POST" class="d-inline">
@@ -83,7 +81,7 @@
             </tr>
         @empty
             <tr>
-                <td colspan="10" class="text-center">No students found.</td>
+                <td colspan="9" class="text-center">No students found.</td>
             </tr>
         @endforelse
         </tbody>

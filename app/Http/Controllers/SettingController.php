@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\SchoolMajor;
 use App\Models\Student;
 use App\Models\Supervisor;
 use App\Models\User;
@@ -27,6 +28,9 @@ class SettingController extends Controller
         $profileDetails = $this->profileDetails($user->id, $role);
 
         $formData = $this->profileFormData($user, $role);
+        
+        $schoolId = $this->currentSchoolId();
+        $majors = $schoolId ? SchoolMajor::forSchool($schoolId)->active()->orderBy('name')->get() : collect();
 
         return view('settings.profile', [
             'user' => $user,
@@ -34,6 +38,7 @@ class SettingController extends Controller
             'environmentAvailable' => $environmentAvailable,
             'profileDetails' => $profileDetails,
             'formData' => $formData,
+            'majors' => $majors,
         ]);
     }
 
@@ -96,9 +101,85 @@ class SettingController extends Controller
 
         abort_unless($this->environmentAvailable($role), 403);
 
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404);
+
+        $majors = SchoolMajor::forSchool($schoolId)
+            ->withCount(['students', 'supervisors'])
+            ->orderBy('name')
+            ->get();
+
         return view('settings.environments', [
             'role' => $role,
+            'majors' => $majors,
         ]);
+    }
+
+    public function storeMajor($school, Request $request)
+    {
+        $user = $this->resolveUser();
+        abort_unless($this->environmentAvailable($user->role), 403);
+
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404);
+
+        $data = $request->validate([
+            'name' => 'required|string|max:150',
+            'is_active' => 'boolean',
+        ]);
+
+        $data['school_id'] = $schoolId;
+        $data['is_active'] = $request->has('is_active');
+
+        SchoolMajor::create($data);
+
+        return redirect($this->schoolRoute('settings/environments'))
+            ->with('status', 'Major/Department added successfully.');
+    }
+
+    public function updateMajor($school, Request $request, $id)
+    {
+        $user = $this->resolveUser();
+        abort_unless($this->environmentAvailable($user->role), 403);
+
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404);
+
+        $major = SchoolMajor::forSchool($schoolId)->findOrFail($id);
+
+        $data = $request->validate([
+            'name' => 'required|string|max:150',
+            'is_active' => 'boolean',
+        ]);
+
+        $data['is_active'] = $request->has('is_active');
+
+        $major->update($data);
+
+        return redirect($this->schoolRoute('settings/environments'))
+            ->with('status', 'Major/Department updated successfully.');
+    }
+
+    public function destroyMajor($school, $id)
+    {
+        $user = $this->resolveUser();
+        abort_unless($this->environmentAvailable($user->role), 403);
+
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404);
+
+        $major = SchoolMajor::forSchool($schoolId)->findOrFail($id);
+
+        // Check if major is still in use
+        if ($major->students()->count() > 0 || $major->supervisors()->count() > 0) {
+            return redirect($this->schoolRoute('settings/environments'))
+                ->withErrors(['major' => 'Cannot delete major/department that is still in use.']);
+        }
+
+        $major->delete();
+
+        return redirect($this->schoolRoute('settings/environments'))
+            ->with('status', 'Major/Department deleted successfully.');
     }
 
     private function resolveUser(): User
@@ -170,7 +251,7 @@ class SettingController extends Controller
                 'phone' => $user->phone,
                 'student_number' => $student?->student_number,
                 'national_sn' => $student?->national_sn,
-                'major' => $student?->major,
+                'major_id' => $student?->major_id,
                 'class' => $student?->class,
                 'batch' => $student?->batch,
                 'notes' => $student?->notes,
@@ -185,7 +266,7 @@ class SettingController extends Controller
                 'email' => $user->email,
                 'phone' => $user->phone,
                 'supervisor_number' => $supervisor?->supervisor_number,
-                'department' => $supervisor?->department,
+                'department_id' => $supervisor?->department_id,
                 'notes' => $supervisor?->notes,
                 'photo' => $supervisor?->photo,
             ];
@@ -249,7 +330,7 @@ class SettingController extends Controller
                     ->ignore($student->id)
                     ->where(fn ($q) => $q->where('school_id', $schoolId)),
             ],
-            'major' => 'required|string',
+            'major_id' => 'required|exists:school_majors,id',
             'class' => 'required|string|max:100',
             'batch' => 'required|string',
             'notes' => 'nullable|string',
@@ -265,7 +346,7 @@ class SettingController extends Controller
             $student->update([
                 'student_number' => $data['student_number'],
                 'national_sn' => $data['national_sn'],
-                'major' => $data['major'],
+                'major_id' => $data['major_id'],
                 'class' => $data['class'],
                 'batch' => $data['batch'],
                 'notes' => $data['notes'] ?? null,
@@ -298,7 +379,7 @@ class SettingController extends Controller
                     ->ignore($supervisor->id)
                     ->where(fn ($q) => $q->where('school_id', $schoolId)),
             ],
-            'department' => 'required|string',
+            'department_id' => 'required|exists:school_majors,id',
             'notes' => 'nullable|string',
             'photo' => 'nullable|string',
         ]);
@@ -311,7 +392,7 @@ class SettingController extends Controller
 
             $supervisor->update([
                 'supervisor_number' => $data['supervisor_number'],
-                'department' => $data['department'],
+                'department_id' => $data['department_id'],
                 'notes' => $data['notes'] ?? null,
                 'photo' => $data['photo'] ?? null,
             ]);

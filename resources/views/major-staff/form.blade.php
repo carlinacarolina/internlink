@@ -9,14 +9,14 @@
 
         <div>
             <label for="major" class="form-label">Major</label>
-            <input type="text" name="major" id="major" class="form-control" value="{{ old('major', optional($assignment)->major) }}" list="major-suggestions" maxlength="150" required>
-            @if(!empty($majors))
-                <datalist id="major-suggestions">
-                    @foreach($majors as $major)
-                        <option value="{{ $major }}"></option>
-                    @endforeach
-                </datalist>
-            @endif
+            <select name="major_id" id="major" class="form-select tom-select" required>
+                <option value="">Select major</option>
+                @foreach($majors as $major)
+                    <option value="{{ $major->id }}" @selected(old('major_id', optional($assignment)->major_id) == $major->id)>
+                        {{ $major->name }}
+                    </option>
+                @endforeach
+            </select>
         </div>
 
         <div>

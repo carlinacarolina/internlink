@@ -35,7 +35,14 @@
     </div>
     <div class="col-md-6">
         <label class="form-label" for="student-major">Major</label>
-        <input type="text" name="major" id="student-major" class="form-control" value="{{ old('major', optional($student)->major) }}" required>
+        <select name="major_id" id="student-major" class="form-select tom-select" required>
+            <option value="">Select major</option>
+            @foreach($majors as $major)
+                <option value="{{ $major->id }}" @selected(old('major_id', optional($student)->major_id) == $major->id)>
+                    {{ $major->name }}
+                </option>
+            @endforeach
+        </select>
     </div>
     <div class="col-md-6">
         <label class="form-label" for="student-class">Class</label>

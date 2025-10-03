@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\SchoolMajor;
 use App\Models\Supervisor;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -196,7 +197,15 @@ class SupervisorController extends Controller
         if (!in_array(session('role'), ['admin', 'developer'])) {
             abort(401);
         }
-        return view('supervisor.create');
+        
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404);
+        
+        $majors = SchoolMajor::forSchool($schoolId)->active()->orderBy('name')->get();
+        
+        return view('supervisor.create', [
+            'majors' => $majors,
+        ]);
     }
 
     public function store(Request $request)
@@ -223,7 +232,7 @@ class SupervisorController extends Controller
                 'max:50',
                 Rule::unique('supervisors', 'supervisor_number')->where(fn ($q) => $q->where('school_id', $schoolId)),
             ],
-            'department' => 'required|string|max:255',
+            'department_id' => 'required|exists:school_majors,id',
             'notes' => 'nullable|string|max:1000',
             'photo' => 'nullable|string|max:255',
         ]);
@@ -241,7 +250,7 @@ class SupervisorController extends Controller
             'user_id' => $user->id,
             'school_id' => $schoolId,
             'supervisor_number' => $data['supervisor_number'],
-            'department' => $data['department'],
+            'department_id' => $data['department_id'],
             'notes' => $data['notes'] ?? null,
             'photo' => $data['photo'] ?? null,
         ]);
@@ -265,7 +274,13 @@ class SupervisorController extends Controller
             ->where('school_id', $schoolId)
             ->first();
         abort_if(!$supervisor, 404);
-        return view('supervisor.edit', compact('supervisor'));
+        
+        $majors = SchoolMajor::forSchool($schoolId)->active()->orderBy('name')->get();
+        
+        return view('supervisor.edit', [
+            'supervisor' => $supervisor,
+            'majors' => $majors,
+        ]);
     }
 
     public function update(Request $request, $school, $id)
@@ -302,7 +317,7 @@ class SupervisorController extends Controller
                     ->ignore($supervisor->id)
                     ->where(fn ($q) => $q->where('school_id', $schoolId)),
             ],
-            'department' => 'required|string|max:255',
+            'department_id' => 'required|exists:school_majors,id',
             'notes' => 'nullable|string|max:1000',
             'photo' => 'nullable|string|max:255',
         ]);
@@ -317,7 +332,7 @@ class SupervisorController extends Controller
 
         $supervisor->update([
             'supervisor_number' => $data['supervisor_number'],
-            'department' => $data['department'],
+            'department_id' => $data['department_id'],
             'notes' => $data['notes'] ?? null,
             'photo' => $data['photo'] ?? null,
         ]);

@@ -14,6 +14,7 @@ class Supervisor extends Model
         'school_id',
         'supervisor_number',
         'department',
+        'department_id',
         'notes',
         'photo',
     ];
@@ -26,5 +27,10 @@ class Supervisor extends Model
     public function school()
     {
         return $this->belongsTo(School::class);
+    }
+
+    public function department()
+    {
+        return $this->belongsTo(SchoolMajor::class, 'department_id');
     }
 }

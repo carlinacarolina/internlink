@@ -28,7 +28,14 @@
     </div>
     <div class="mb-3">
         <label class="form-label">Department</label>
-        <input type="text" name="department" class="form-control" value="{{ old('department', optional($supervisor)->department) }}" required>
+        <select name="department_id" class="form-select tom-select" required>
+            <option value="">Select department</option>
+            @foreach($majors as $major)
+                <option value="{{ $major->id }}" @selected(old('department_id', optional($supervisor)->department_id) == $major->id)>
+                    {{ $major->name }}
+                </option>
+            @endforeach
+        </select>
     </div>
     <div class="mb-3">
         <label class="form-label">Notes</label>

@@ -58,7 +58,7 @@
                 <div><span class="fw-semibold">City:</span> {{ $application->institution_city ?? '—' }}</div>
                 <div><span class="fw-semibold">Province:</span> {{ $application->institution_province ?? '—' }}</div>
                 <div><span class="fw-semibold">Website:</span> {{ $application->institution_website ?? '—' }}</div>
-                <div><span class="fw-semibold">Industry:</span> {{ $application->institution_industry ?? '—' }}</div>
+                <div><span class="fw-semibold">Industry For:</span> {{ $application->institution_industry_for_name ?? '—' }}</div>
                 <div><span class="fw-semibold">Notes:</span> {{ $application->institution_notes ?? '—' }}</div>
                 <div class="fw-semibold mt-2">Primary Contact</div>
                 <div><span class="fw-semibold">Name:</span> {{ $application->institution_contact_name ?? '—' }}</div>

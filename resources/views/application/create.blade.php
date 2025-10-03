@@ -5,7 +5,7 @@
 @section('content')
 <h1 class="mb-4">Create Application</h1>
 
-<form action="{{ $schoolRoute('applications') }}" method="POST" class="card">
+<form action="{{ $schoolRoute('applications') }}" method="POST" class="card" id="application-form">
     @csrf
     <div class="card-body d-flex flex-column gap-3">
         @include('components.form-errors')
@@ -60,19 +60,18 @@
             </select>
         </div>
 
-        @php($showPeriodInput = old('institution_id') !== null && old('institution_id') !== '')
-        <div id="period-section" class="{{ $showPeriodInput ? '' : 'd-none' }}">
-            <label for="period-id" class="form-label">Period</label>
-            <select
-                name="period_id"
-                id="period-id"
-                class="form-select tom-select"
-                data-tom-allow-empty="true"
-                data-selected="{{ old('period_id', '') }}"
-                data-placeholder="Select period"
-            >
-                <option value="">Select period</option>
-            </select>
+        <div class="border rounded p-3 bg-light" id="period-helper">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h6 class="mb-0">Detected Period</h6>
+                <span class="badge bg-secondary" id="period-helper-label">—</span>
+            </div>
+            <p class="mb-0 text-muted" id="period-helper-info">Select an institution and planned start date to detect the appropriate period.</p>
+            <div class="alert alert-warning d-none mt-3" id="period-helper-alert" role="alert">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <span id="period-helper-alert-text">Quota missing for the detected period. Create one before saving.</span>
+                    <button type="button" class="btn btn-sm btn-warning" id="period-helper-modal-button">Create Quota</button>
+                </div>
+            </div>
         </div>
 
         <div>
@@ -142,9 +141,37 @@
     </div>
     <div class="card-footer d-flex justify-content-end gap-2">
         <a href="{{ $schoolRoute('applications') }}" class="btn btn-outline-secondary">Cancel</a>
-        <button type="submit" class="btn btn-primary">Save</button>
+        <button type="submit" class="btn btn-primary" id="application-submit">Save</button>
     </div>
 </form>
+
+<div class="modal fade" id="quotaModal" tabindex="-1" aria-labelledby="quotaModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="quota-form" action="{{ $schoolRoute('applications/resolve-period') }}" method="POST">
+                @csrf
+                <div class="modal-header">
+                    <h5 class="modal-title" id="quotaModalLabel">Create Period Quota</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="institution_id" id="quota-institution-id" value="">
+                    <input type="hidden" name="planned_start_date" id="quota-start-date" value="">
+                    <p class="mb-3">Quota will be created for <span class="fw-semibold" id="quota-modal-period">—</span>.</p>
+                    <div class="mb-3">
+                        <label for="quota-value" class="form-label">Quota</label>
+                        <input type="number" min="0" name="quota" id="quota-value" class="form-control" required>
+                    </div>
+                    <div class="alert alert-danger d-none" id="quota-modal-error" role="alert"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 @push('scripts')
 <script>
 (() => {
@@ -157,25 +184,10 @@
     const addBtn = document.getElementById('add-student-btn');
     const container = document.getElementById('additional-students');
     const applyMissing = document.getElementById('apply-missing');
-    const allStudents = @json($students->map(fn ($student) => [
-        'id' => $student->id,
-        'name' => $student->name,
-        'major' => $student->major,
-    ])->values());
-    const missingStudents = @json($studentsWithoutApplication->map(fn ($student) => [
-        'id' => $student->id,
-        'name' => $student->name,
-        'major' => $student->major,
-    ])->values());
-    const staffAssignments = @json($majorStaff->map(fn ($staff) => [
-        'major' => $staff->major,
-        'major_slug' => $staff->major_slug,
-        'name' => $staff->name,
-        'email' => $staff->email,
-        'phone' => $staff->phone,
-        'supervisor_number' => $staff->supervisor_number,
-    ])->values());
-    const institutionPeriods = @json($institutionPeriods);
+    const allStudents = @json($students->toArray());
+    const missingStudents = @json($studentsWithoutApplication->toArray());
+    const staffAssignments = @json($majorStaff->toArray());
+    const institutionQuotaData = Object.assign({}, @json($institutionQuotaMap ?? []));
 
     const studentLookup = new Map();
     allStudents.forEach((student) => {
@@ -189,25 +201,11 @@
 
     const staffLookup = new Map();
     staffAssignments.forEach((staff) => {
-        staffLookup.set(String(staff.major_slug), staff);
-    });
-
-    function slugifyMajor(value) {
-        if (!value) {
-            return '';
+        const majorId = Number(staff.major_id);
+        if (!Number.isNaN(majorId)) {
+            staffLookup.set(majorId, staff);
         }
-        const normalized = value
-            .toString()
-            .normalize('NFKD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .toLowerCase()
-            .replace(/[^a-z0-9\s-]/g, '')
-            .trim()
-            .replace(/[\s_-]+/g, '-')
-            .replace(/^-+|-+$/g, '');
-
-        return normalized || 'major';
-    }
+    });
 
     function determineMajorContext() {
         const selectedIds = getSelectedValues();
@@ -218,21 +216,22 @@
         const majors = [];
         for (const id of selectedIds) {
             const student = studentLookup.get(String(id));
-            if (!student || !student.major || !student.major.trim()) {
+            const majorId = Number(student?.major_id ?? NaN);
+            if (!student || Number.isNaN(majorId)) {
                 return { valid: false, reason: 'missing-major' };
             }
-            majors.push(student.major);
+            majors.push({ id: majorId, label: student.major });
         }
 
-        const slugs = new Set(majors.map((major) => slugifyMajor(major)));
-        if (slugs.size !== 1) {
+        const majorIds = Array.from(new Set(majors.map((major) => major.id)));
+        if (majorIds.length !== 1) {
             return { valid: false, reason: 'mixed-major' };
         }
 
         return {
             valid: true,
-            major: majors[0],
-            slug: Array.from(slugs)[0],
+            majorId: majorIds[0],
+            majorLabel: majors[0].label,
         };
     }
 
@@ -272,8 +271,8 @@
             return;
         }
 
-        staffMajorBadge.textContent = context.major;
-        const staff = staffLookup.get(String(context.slug));
+        staffMajorBadge.textContent = context.majorLabel || '—';
+        const staff = staffLookup.get(context.majorId);
         if (staff) {
             staffName.textContent = staff.name;
             staffEmail.textContent = staff.email || '—';
@@ -439,7 +438,8 @@
                 if (selectedValues.has(id)) {
                     return;
                 }
-                if (slugifyMajor(student.major || '') !== context.slug) {
+                const studentMajorId = (student.major_id ?? null) === null ? NaN : Number(student.major_id);
+                if (Number.isNaN(studentMajorId) || studentMajorId !== context.majorId) {
                     return;
                 }
                 createSelect(student.id);
@@ -458,80 +458,268 @@
     populateAllSelects();
     refreshStaffContact();
 
+    const form = document.getElementById('application-form');
+    const saveButton = document.getElementById('application-submit');
     const institutionSelect = document.getElementById('institution-id');
-    const periodSection = document.getElementById('period-section');
-    const periodSelect = document.getElementById('period-id');
-    const initialPeriodId = periodSelect ? (periodSelect.dataset.selected || '') : '';
+    const plannedStartInput = document.getElementById('planned-start-date');
+    const periodCard = document.getElementById('period-helper');
+    const periodLabel = document.getElementById('period-helper-label');
+    const periodInfo = document.getElementById('period-helper-info');
+    const periodAlert = document.getElementById('period-helper-alert');
+    const periodAlertText = document.getElementById('period-helper-alert-text');
+    const periodModalButton = document.getElementById('period-helper-modal-button');
 
-    function rebuildPeriodOptions(options, selectedValue) {
-        if (!periodSelect) {
+    const periodState = {
+        ready: false,
+        institutionId: null,
+        year: null,
+        term: null,
+        startValue: null,
+    };
+
+    function setSaveDisabledByPeriod(disabled) {
+        if (!saveButton) {
             return;
         }
 
-        const normalizedSelected = options.some((item) => String(item.id) === String(selectedValue))
-            ? String(selectedValue)
-            : '';
-
-        if (periodSelect.tomselect) {
-            periodSelect.tomselect.destroy();
+        if (disabled) {
+            saveButton.dataset.disabledByPeriod = '1';
+            saveButton.disabled = true;
+        } else {
+            delete saveButton.dataset.disabledByPeriod;
+            saveButton.disabled = false;
         }
-
-        periodSelect.innerHTML = '';
-
-        const placeholder = document.createElement('option');
-        placeholder.value = '';
-        placeholder.textContent = 'Select period';
-        periodSelect.appendChild(placeholder);
-
-        options.forEach((item) => {
-            const option = document.createElement('option');
-            option.value = item.id;
-            option.textContent = item.label;
-            periodSelect.appendChild(option);
-        });
-
-        if (normalizedSelected) {
-            periodSelect.value = normalizedSelected;
-        }
-
-        window.initTomSelect && window.initTomSelect();
-
-        if (periodSelect.tomselect) {
-            if (normalizedSelected) {
-                periodSelect.tomselect.setValue(normalizedSelected, true);
-            } else {
-                periodSelect.tomselect.clear(true);
-            }
-        }
-
-        periodSelect.dataset.selected = normalizedSelected;
     }
 
-    function updatePeriodSection(useInitial = false) {
-        if (!institutionSelect || !periodSection || !periodSelect) {
+    function parsePeriodFromDate(value) {
+        if (!value) {
+            return null;
+        }
+        const parts = value.split('-');
+        if (parts.length < 2) {
+            return null;
+        }
+
+        const year = Number(parts[0]);
+        const month = Number(parts[1]);
+
+        if (Number.isNaN(year) || Number.isNaN(month)) {
+            return null;
+        }
+
+        const term = month >= 7 ? 2 : 1;
+        return { year, term };
+    }
+
+    function findQuotaRecord(institutionId, year, term) {
+        const key = String(institutionId);
+        const records = Array.isArray(institutionQuotaData[key]) ? institutionQuotaData[key] : [];
+        return records.find((item) => Number(item.year) === year && Number(item.term) === term) || null;
+    }
+
+    function refreshPeriodCard() {
+        if (!periodCard) {
             return;
         }
 
-        const institutionId = institutionSelect.value;
+        const institutionId = institutionSelect?.value || '';
+        const startValue = plannedStartInput?.value || '';
+
+        periodState.ready = false;
+        periodState.institutionId = institutionId || null;
+        periodState.startValue = startValue || null;
+        periodState.year = null;
+        periodState.term = null;
+
+        if (!institutionId && !startValue) {
+            periodLabel.textContent = '—';
+            periodInfo.textContent = 'Select an institution and planned start date to detect the appropriate period.';
+            periodAlert.classList.add('d-none');
+            setSaveDisabledByPeriod(false);
+            return;
+        }
+
         if (!institutionId) {
-            periodSection.classList.add('d-none');
-            rebuildPeriodOptions([], '');
+            periodLabel.textContent = '—';
+            periodInfo.textContent = 'Choose an institution to determine the period.';
+            periodAlert.classList.add('d-none');
+            setSaveDisabledByPeriod(false);
             return;
         }
 
-        const options = institutionPeriods[String(institutionId)] || [];
-        periodSection.classList.remove('d-none');
-        rebuildPeriodOptions(options, useInitial ? initialPeriodId : '');
+        if (!startValue) {
+            periodLabel.textContent = '—';
+            periodInfo.textContent = 'Set the planned start date to determine the period.';
+            periodAlert.classList.add('d-none');
+            setSaveDisabledByPeriod(false);
+            return;
+        }
+
+        const parsed = parsePeriodFromDate(startValue);
+        if (!parsed) {
+            periodLabel.textContent = '—';
+            periodInfo.textContent = 'Unable to determine the period from the provided date.';
+            periodAlert.classList.add('d-none');
+            setSaveDisabledByPeriod(false);
+            return;
+        }
+
+        const { year, term } = parsed;
+        periodState.year = year;
+        periodState.term = term;
+
+        const label = `${year} • Term ${term}`;
+        periodLabel.textContent = label;
+
+        const quotaRecord = findQuotaRecord(institutionId, year, term);
+        if (quotaRecord) {
+            const seats = Number(quotaRecord.quota);
+            const used = Number(quotaRecord.used);
+            periodInfo.textContent = `Quota available: ${Number.isNaN(seats) ? '—' : seats} seat(s), used: ${Number.isNaN(used) ? '—' : used}.`;
+            periodAlert.classList.add('d-none');
+            periodState.ready = true;
+            setSaveDisabledByPeriod(false);
+        } else {
+            periodInfo.textContent = 'No quota exists for the detected period.';
+            periodAlertText.textContent = `Create a quota for ${label} before saving.`;
+            periodAlert.classList.remove('d-none');
+            periodState.ready = false;
+            setSaveDisabledByPeriod(true);
+        }
     }
 
-    if (institutionSelect && periodSection && periodSelect) {
-        updatePeriodSection(true);
-        institutionSelect.addEventListener('change', () => {
-            periodSelect.dataset.selected = '';
-            updatePeriodSection(false);
+    if (institutionSelect) {
+        institutionSelect.addEventListener('change', refreshPeriodCard);
+    }
+
+    if (plannedStartInput) {
+        plannedStartInput.addEventListener('change', refreshPeriodCard);
+        plannedStartInput.addEventListener('input', refreshPeriodCard);
+    }
+
+    refreshPeriodCard();
+
+    const modalConstructor = window.bootstrap && window.bootstrap.Modal ? window.bootstrap.Modal : null;
+    const quotaModalEl = document.getElementById('quotaModal');
+    const quotaForm = document.getElementById('quota-form');
+    const quotaInstitutionInput = document.getElementById('quota-institution-id');
+    const quotaStartInput = document.getElementById('quota-start-date');
+    const quotaPeriodLabel = document.getElementById('quota-modal-period');
+    const quotaError = document.getElementById('quota-modal-error');
+    const quotaValueInput = document.getElementById('quota-value');
+    const quotaModal = quotaModalEl && modalConstructor ? new modalConstructor(quotaModalEl) : null;
+
+    function registerQuota(institutionId, payload, amount) {
+        const key = String(institutionId);
+        const entries = Array.isArray(institutionQuotaData[key]) ? [...institutionQuotaData[key]] : [];
+        const periodPayload = payload?.period || {};
+        const quotaPayload = payload?.quota || {};
+
+        const record = {
+            id: Number(periodPayload.id ?? null),
+            year: Number(periodPayload.year ?? periodState.year ?? null),
+            term: Number(periodPayload.term ?? periodState.term ?? null),
+            quota: Number(quotaPayload.quota ?? amount ?? 0),
+            used: Number(quotaPayload.used ?? 0),
+        };
+
+        const index = entries.findIndex((item) => Number(item.year) === record.year && Number(item.term) === record.term);
+        if (index >= 0) {
+            entries[index] = record;
+        } else {
+            entries.push(record);
+        }
+
+        institutionQuotaData[key] = entries;
+    }
+
+    if (periodModalButton && quotaModal && quotaForm) {
+        periodModalButton.addEventListener('click', () => {
+            if (!periodState.institutionId || !periodState.startValue || periodState.year === null) {
+                return;
+            }
+
+            quotaForm.reset();
+            if (quotaError) {
+                quotaError.classList.add('d-none');
+                quotaError.textContent = '';
+            }
+
+            quotaInstitutionInput.value = periodState.institutionId;
+            quotaStartInput.value = periodState.startValue;
+            quotaPeriodLabel.textContent = `${periodState.year} • Term ${periodState.term}`;
+            quotaModal.show();
         });
-        periodSelect.addEventListener('change', () => {
-            periodSelect.dataset.selected = periodSelect.value || '';
+    }
+
+    if (quotaModalEl) {
+        quotaModalEl.addEventListener('shown.bs.modal', () => {
+            quotaValueInput?.focus();
+        });
+    }
+
+    if (quotaForm && quotaModal) {
+        quotaForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            if (quotaError) {
+                quotaError.classList.add('d-none');
+                quotaError.textContent = '';
+            }
+
+            const formData = new FormData(quotaForm);
+            try {
+                const tokenInput = quotaForm.querySelector('input[name="_token"]');
+                const response = await fetch(quotaForm.action, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': tokenInput ? tokenInput.value : '',
+                        'Accept': 'application/json',
+                    },
+                    body: formData,
+                });
+
+                if (!response.ok) {
+                    if (response.status === 422) {
+                        const data = await response.json();
+                        const errors = data.errors || {};
+                        const messages = Object.values(errors).flat();
+                        const message = messages.length ? messages.join(' ') : (data.message || 'Unable to save quota.');
+                        if (quotaError) {
+                            quotaError.textContent = message;
+                            quotaError.classList.remove('d-none');
+                        }
+                    } else if (quotaError) {
+                        quotaError.textContent = 'Unable to save quota.';
+                        quotaError.classList.remove('d-none');
+                    }
+                    return;
+                }
+
+                const payload = await response.json();
+                const institutionId = String(formData.get('institution_id') || '');
+                const amount = Number(formData.get('quota') || 0);
+                registerQuota(institutionId, payload, amount);
+                quotaModal.hide();
+                refreshPeriodCard();
+            } catch (error) {
+                if (quotaError) {
+                    quotaError.textContent = 'Network error. Please try again.';
+                    quotaError.classList.remove('d-none');
+                }
+            }
+        });
+    }
+
+    if (form) {
+        form.addEventListener('submit', (event) => {
+            if (periodState.institutionId && periodState.startValue && !periodState.ready) {
+                event.preventDefault();
+                if (periodAlert) {
+                    periodAlert.classList.remove('d-none');
+                    periodAlert.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
         });
     }
 })();

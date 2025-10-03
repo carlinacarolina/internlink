@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\ApplicationController;
+use App\Http\Controllers\ApplicationPeriodController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DeveloperController;
 use App\Http\Controllers\InstitutionController;
@@ -77,6 +78,13 @@ Route::middleware('auth.session')->group(function () {
             Route::get('/security', [SettingController::class, 'editSecurity'])->name('security');
             Route::put('/security', [SettingController::class, 'updateSecurity'])->name('security.update');
             Route::get('/environments', [SettingController::class, 'environments'])->name('environments');
+            
+            // Major/Department management routes
+            Route::prefix('environments/majors')->group(function () {
+                Route::post('/', [SettingController::class, 'storeMajor']);
+                Route::put('{id}', [SettingController::class, 'updateMajor']);
+                Route::delete('{id}', [SettingController::class, 'destroyMajor']);
+            });
         });
 
         Route::prefix('students')->group(function () {
@@ -137,6 +145,8 @@ Route::middleware('auth.session')->group(function () {
         Route::prefix('applications')->group(function () {
             Route::get('/', [ApplicationController::class, 'index']);
             Route::get('/create', [ApplicationController::class, 'create']);
+            Route::get('/print-all', [ApplicationController::class, 'printAll']);
+            Route::post('/resolve-period', [ApplicationPeriodController::class, 'store']);
             Route::post('/', [ApplicationController::class, 'store']);
             Route::get('{id}/read', [ApplicationController::class, 'show']);
             Route::get('{id}/pdf', [ApplicationController::class, 'pdf']);

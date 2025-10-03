@@ -82,6 +82,11 @@ return new class extends Migration
           phone      varchar(30) NOT NULL UNIQUE,
           email      citext NOT NULL UNIQUE,
           website    text NULL,
+          city       varchar(100),
+          postal_code varchar(20),
+          principal_name varchar(150),
+          principal_nip varchar(50),
+          code       varchar(20) NOT NULL UNIQUE,
           created_at timestamptz NOT NULL DEFAULT now(),
           updated_at timestamptz NOT NULL DEFAULT now()
         );

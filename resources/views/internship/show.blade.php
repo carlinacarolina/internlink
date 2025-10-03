@@ -59,7 +59,7 @@
                 <div><span class="fw-semibold">City:</span> {{ $internship->institution_city ?? '—' }}</div>
                 <div><span class="fw-semibold">Province:</span> {{ $internship->institution_province ?? '—' }}</div>
                 <div><span class="fw-semibold">Website:</span> {{ $internship->institution_website ?? '—' }}</div>
-                <div><span class="fw-semibold">Industry:</span> {{ $internship->institution_industry ?? '—' }}</div>
+                <div><span class="fw-semibold">Industry For:</span> {{ $internship->institution_industry_for_name ?? '—' }}</div>
                 <div><span class="fw-semibold">Notes:</span> {{ $internship->institution_notes ?? '—' }}</div>
                 <div class="fw-semibold mt-2">Primary Contact</div>
                 <div><span class="fw-semibold">Name:</span> {{ $internship->institution_contact_name ?? '—' }}</div>

@@ -1,75 +1,58 @@
 # agents/settings.md
 
-Account settings area for InternLink users.
-
-> Read **AGENTS.md** first to understand navigation and realm rules.
+Realm settings provide self-service for profile updates, password changes, and (for privileged roles) major/department maintenance. Controller: `App\Http\Controllers\SettingController`.
 
 ---
 
 ## Access Rights
-
-- `/{school_code}/settings/profile` and `/{school_code}/settings/security` are available to every authenticated role while inside a school realm.
-- `/{school_code}/settings/environments` is restricted to admin and developer roles; other roles receive a 403 response.
+- `/{school_code}/settings/profile` & `/security`: all authenticated roles inside a realm.
+- `/{school_code}/settings/environments`: admin and developer only. Students and supervisors receive HTTP 403.
+- Major management actions (`storeMajor`, `updateMajor`, `destroyMajor`) inherit the same admin/developer guard.
 
 ---
 
 ## Navigation
-
-- The Settings button in the header routes to `/{school_code}/settings/profile` when a realm is active.
-- Each settings page renders a local sidebar with links to Profile, Security, and (role-gated) Environments for quick switching.
+- Settings link appears once a realm is active. Developers must enter a school first via `/schools` → **Realm**.
+- Each settings page renders the shared sidebar (Profile, Security, Environments when authorised).
 
 ---
 
 ## Profile — `/{school_code}/settings/profile`
+- Uses the same validation rules as the main CRUD modules.
+- Inputs by role:
+  - **Student**: Name, Email, Phone, Student Number, National Student Number, Major (Tom Select of active `school_majors`), Class, Batch, Notes, Photo URL.
+  - **Supervisor**: Name, Email, Phone, Supervisor Number, Department (Tom Select of active `school_majors`), Notes, Photo URL.
+  - **Admin**: Name, Email, Phone (scoped uniqueness to the current school).
+  - **Developer**: Name, Email, Phone (global uniqueness).
+- Submits update both the `users` table and the role profile table inside a transaction.
+- Flash message: “Profile updated.”
 
-### Purpose
-
-- Provides editable inputs so users can maintain their personal information without leaving the settings area.
-- Displays a read-only “Profile Overview” card summarising the latest stored values.
-
-### Form Inputs
-
-| Role | Inputs |
-| --- | --- |
-| Student | Name, Email, Phone, Student Number, National Student Number, Major, Class, Batch, Notes, Photo URL |
-| Supervisor | Name, Email, Phone, Supervisor Number, Department, Notes, Photo URL |
-| Admin / Developer | Name, Email, Phone |
-
-### Validation & Behaviour
-
-- Name and Email are required for every role.
-- Email uniqueness follows existing CRUD rules: scoped to the current school for non-developers, global for developers.
-- Student & Supervisor identifiers (`student_number`, `national_sn`, `supervisor_number`) stay unique inside the school realm; updates occur in a transaction alongside the base user record.
-- No password field appears on this page (password changes live in Security).
-- Submitting the form saves immediately and redirects back with a success flash message.
+### Profile Overview
+- Right-hand column summarises key fields (name, identifiers, major/department) pulled from the `*_details_view`.
 
 ---
 
 ## Security — `/{school_code}/settings/security`
-
-### Form Inputs
-
-- Old Password (required)
-- New Password (required, min 8 characters)
-- Confirm Password (must match new password)
-
-### Behaviour
-
-- Old password must match the current credential; mismatch raises a validation error.
-- On success the password rotates instantly and the user is returned to the Security page with confirmation.
-- A “Security Overview” card still surfaces role, verification status, and account timestamps for reference.
+- Form inputs: Old Password, New Password (min 8), Confirm New Password.
+- Old password mismatch returns validation error without changing anything.
+- Success path hashes the new password, saves, and redirects back with “Password updated successfully.”
+- Security overview card shows Role, Email verification state, profile updated time, and account creation time (formatted via Carbon).
 
 ---
 
 ## Environments — `/{school_code}/settings/environments`
-
-- Visible only to admin and developer roles.
-- Currently a placeholder card for upcoming environment management tooling.
-- Non-authorised roles are blocked with HTTP 403 to prevent accidental discovery.
+- Admin/Developer dashboard for majors/departments (`app.school_majors`).
+- Table displays Major name, Active toggle, and usage counts (`students_count`, `supervisors_count`).
+- Actions:
+  - Add Major: Name (required, ≤150), Active flag.
+  - Edit Major: same fields; toggling Active hides/shows the major in Tom Select lists.
+  - Delete Major: blocked via validation if students/supervisors still reference it.
+- Routes: `POST /settings/environments/majors`, `PUT /settings/environments/majors/{id}`, `DELETE /settings/environments/majors/{id}`.
+- Flash messages communicate create/update/delete success; deletion errors return `withErrors` explaining the constraint.
 
 ---
 
-## Notes
-
-- Developers must enter a realm (via the Schools list) before the Settings button appears; settings are realm-scoped.
-- All read-only details leverage the existing reporting views (`student_details_view`, `supervisor_details_view`) so diagnostics remain consistent with CRUD modules.
+## Implementation Notes
+- All forms reuse the `schoolRoute()` helper to stay realm-scoped.
+- Profile and security pages rely on `resolveUser()` which reads `session('user_id')`; ensure auth middleware keeps the session hydrated.
+- Major data powers multiple modules (students, supervisors, institutions, applications, monitoring). Keep this documentation plus `agents/staff.md` updated when the schema changes.

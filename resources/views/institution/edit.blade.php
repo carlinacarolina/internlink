@@ -10,7 +10,7 @@
     'institution' => $institution,
     'cities' => $cities,
     'provinces' => $provinces,
-    'industries' => $industries,
+    'schoolMajors' => $schoolMajors,
     'periods' => $periods,
 ])
 @endsection

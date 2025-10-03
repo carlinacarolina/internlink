@@ -1,157 +1,62 @@
 # agents/school.md
 
-CRUD School is used to manage rows in the **schools** table and the **school_details_view** view. Use this document to keep the UI and behaviours aligned with InternLink standards.
-
-> Read **AGENTS.md** first to understand the overall context and global guidelines.
+Schools are managed globally by developers. Records live in `app.schools` and expose the realm code used throughout the application. Controller: `App\Http\Controllers\SchoolController`.
 
 ---
 
 ## Access Rights
-* **Create**: Developer only.  
-* **Read**: Developer only.  
-* **Update**: Developer only.  
-* **Delete**: Developer only.  
+- **Developer**: full CRUD.
+- **Other roles**: blocked by middleware.
 
 ---
 
-## List – `/schools/`
-
-1. Page title: **Schools**.  
-
-2. **Search Input**  
-   * Searches across Name, Address, Phone, and Email (no 10-record limit).  
-   * Search executes only after the user submits the form via the **Search** button or pressing Enter.  
-   * Changing the input alone does not trigger a search.  
-
-3. **Create button**  
-   * Label: **Create School**.  
-   * Positioned beside the search box.  
-   * Redirects to `/schools/create`.  
-
-4. **Filter** (sidebar opens from the right after clicking the **Filter** button):  
-   * Title: **Filter Schools**.  
-   * **X** button to close the sidebar.  
-   * Inputs:  
-     * Name (text)  
-     * Email (text)  
-     * Phone (text)  
-     * Has Website? (radio: True / False / Any)  
-     * Sort By (dropdown) with options:  
-       * Newest (`created_at:desc`)  
-       * Oldest (`created_at:asc`)  
-       * Name A-Z (`name:asc`)  
-       * Name Z-A (`name:desc`)  
-       * Recently Updated (`updated_at:desc`)  
-       * Least Recently Updated (`updated_at:asc`)  
-   * **Reset** button to clear filters.  
-   * **Apply** button to apply filters.  
-   * Applied filters appear as removable chips above the table using the format `{filter name}: {filter value}`.  
-
-5. **Table** with columns: Name, Phone, Email, Website, Updated At, Actions.  
-   * Website column shows **Visit** link when available, otherwise `—`.  
-   * The table supports horizontal scrolling when content exceeds the viewport width.  
-   * Actions include **Realm** to jump into the selected school realm at `/{id}` alongside Read / Update / Delete controls.  
-
-6. Display **10 records per page**, with **Next** and **Back** navigation.  
-
-7. Display the total number of schools and the page indicator in the format `Page X out of N`.  
+## List — `/schools`
+- Toolbar: search (`q`), `Create School`, and filter off-canvas.
+- Filters: Name, Email, Phone, Has Website (`true/false/any`), Sort (Newest, Oldest, Name A–Z/Z–A, Recently/Least recently updated).
+- Table columns: Name, Phone, Email, Website (`Visit` link or `—`), Updated At, Actions.
+- Actions include **Realm** (opens `/{code}`), Read, Update, Delete.
+- Pagination: 10 rows per page, total count, `Page X of N` indicator.
 
 ---
 
-## Create – `/schools/create/`
-
-1. Page title: **Create School**.  
-
-2. Inputs:  
-   * School Name (text, max 150 chars)  
-   * Address (textarea, max 1000 chars)  
-   * City (text, max 100 chars)  
-   * Postal Code (text, max 20 chars)  
-   * Phone (text, accepts digits, spaces, `+`, `(`, `)`, `-`, max 30 chars)  
-   * Email (email)  
-   * Website (url, optional)
-   * Principal Name (text, max 150 chars)
-   * Principal NIP (text, max 50 chars)
-   * Invite Code
-
-3. Notes:  
-   * ID is not an input field.  
-   * All fields except Website, City, Postal Code, Principal Name, and Principal NIP are required.  
-   * Phone and Email values must be unique.  
-   * School code is generated automatically when the record is saved.  
-
-4. **Cancel** button to go back to the list.  
-
-5. **Save** button to store the new data.  
+## Create — `/schools/create`
+- Inputs: Name, Address, City, Postal Code, Phone, Email, Website, Principal Name, Principal NIP.
+- Phone accepts digits/spaces/punctuation; validation enforces the regex `^[0-9+().\-\s]{7,30}$` and uniqueness.
+- Email must be unique, lowercased before save.
+- Website optional URL; blanks stored as `null`.
+- Save redirects to the detail page with a success flash.
 
 ---
 
-## Read – `/schools/[id]/read/`
-
-School details are displayed as:  
-* Name: {value}  
-* Invite Code: {value}  
-* Address: {value}  
-* City: {value or `—`}  
-* Postal Code: {value or `—`}  
-* Phone: {value}  
-* Email: {value}  
-* Website: {value or `—`}  
-* Principal Name: {value or `—`}  
-* Principal NIP: {value or `—`}  
-* Created At: {value}  
-* Updated At: {value}  
-
-Action buttons on this page: **Update** and **Delete**.
+## Read — `/schools/{id}/read`
+- Shows Name, Address, City, Postal Code, Phone, Email, Website, Principal Name/NIP, Created At, Updated At.
+- Realm code is not explicitly rendered but is available via the list page (Realm button) and API responses.
+- Actions: Update, Delete, Back to list.
 
 ---
 
-## Update – `/schools/[id]/update/`
-
-1. Page title: **Update School**.  
-
-2. Inputs are identical to the Create form with default values prefilled from the database.  
-
-3. Notes:  
-   * Phone and Email must remain unique (excluding the current record).  
-   * ID is not an input field.  
-   * School code remains read-only and is not part of the form.  
-
-4. **Cancel** button returns to `/schools/[id]/read`.  
-
-5. **Save** button stores the changes.  
+## Update — `/schools/{id}/update`
+- Form matches Create with values prefilled.
+- Phone/email uniqueness rules ignore the current record.
+- Cancel returns to the detail page; Save persists updates and redirects to Read.
 
 ---
 
 ## Delete
-
-* Delete through the **Delete** button on the list or detail pages.  
-* A confirmation dialog must appear before deletion proceeds.  
+- Delete buttons (list + read) prompt for confirmation then remove the school. Deleting a school cascades to dependent data via foreign keys; confirm migrations before using in production.
 
 ---
 
 ## Validation Summary
-
-* **Name**: required, string, max 150.  
-* **Address**: required, string, max 1000.  
-* **City**: optional, string, max 100.  
-* **Postal Code**: optional, string, max 20.  
-* **Phone**: required, unique, string, max 30, accepts numbers, spaces, `+`, `(`, `)`, `-`.  
-* **Email**: required, unique, valid email, max 255.  
-* **Website**: optional, valid URL, max 255.  
-* **Principal Name**: optional, string, max 150.  
-* **Principal NIP**: optional, string, max 50.  
-* **Code**: generated automatically; must remain unique per school.  
+- Name (required, ≤150), Address (required, ≤1000), City (optional, ≤100), Postal Code (optional, ≤20).
+- Phone: required, trimmed, unique, regex validated.
+- Email: required, unique, trimmed/lowercased.
+- Website: optional URL (trimmed), Principal Name (optional ≤150), Principal NIP (optional ≤50).
+- `code` is generated automatically (see `School` model) and should not be edited manually.
 
 ---
 
-## Database Notes
-
-* Table: `app.schools` with columns `id`, `code`, `name`, `address`, `city`, `postal_code`, `phone`, `email`, `website`, `principal_name`, `principal_nip`, `created_at`, `updated_at`.  
-* Trigger: `trg_schools_updated_at` keeps `updated_at` in sync.  
-* View: `school_details_view` used for all read/list operations and now includes the `code` column.  
-* Code, Phone, Email, and Name columns are unique to keep the table in 3NF and avoid duplicate records.  
-
----
-
-Keep the UI consistent with existing CRUD pages (button styles, spacing, messaging) and follow **agents/security.md** for validation, authorization, and CSRF requirements.
+## Data Source Notes
+- Table: `app.schools` with triggers for timestamp maintenance.
+- View: `school_details_view` backs list and read endpoints.
+- Realm linkage: controllers and middleware rely on `schools.code`; ensure every new record has a unique code.

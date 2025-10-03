@@ -3,11 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Application;
-use App\Models\MajorStaffAssignment;
+use App\Models\InstitutionQuota;
+use App\Models\Period;
+use Carbon\Carbon;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Spatie\Browsershot\Browsershot;
 
 class ApplicationController extends Controller
@@ -34,22 +37,7 @@ class ApplicationController extends Controller
         return ['submitted', 'under_review', 'accepted', 'rejected', 'cancelled'];
     }
 
-    private function periodOptions(int $schoolId): array
-    {
-        return DB::table('periods')
-            ->select('id', 'year', 'term')
-            ->where('school_id', $schoolId)
-            ->orderByDesc('year')
-            ->orderByDesc('term')
-            ->get()
-            ->map(fn ($period) => [
-                'id' => $period->id,
-                'label' => $period->year . ': ' . $period->term,
-            ])
-            ->all();
-    }
-
-    private function periodsByInstitution(array $institutionIds, int $schoolId): array
+    private function quotasByInstitution(array $institutionIds, int $schoolId): array
     {
         if (empty($institutionIds)) {
             return [];
@@ -67,21 +55,79 @@ class ApplicationController extends Controller
                 'p.id as period_id',
                 'p.year',
                 'p.term',
+                'iq.quota',
+                'iq.used',
             ])
             ->groupBy('institution_id')
-            ->map(function ($rows) {
-                return $rows
+            ->mapWithKeys(function ($rows, $institutionId) {
+                $values = $rows
                     ->unique('period_id')
                     ->map(function ($row) {
                         return [
                             'id' => (int) $row->period_id,
-                            'label' => $row->year . ': ' . $row->term,
+                            'year' => (int) $row->year,
+                            'term' => (int) $row->term,
+                            'quota' => (int) $row->quota,
+                            'used' => (int) $row->used,
                         ];
                     })
                     ->values()
                     ->all();
+
+                return [(string) $institutionId => $values];
             })
             ->all();
+    }
+
+    private function periodOptions(int $schoolId): array
+    {
+        return DB::table('periods')
+            ->select('id', 'year', 'term')
+            ->where('school_id', $schoolId)
+            ->orderByDesc('year')
+            ->orderByDesc('term')
+            ->get()
+            ->map(fn ($period) => [
+                'id' => $period->id,
+                'label' => $period->year . ': ' . $period->term,
+            ])
+            ->all();
+    }
+
+    private function inferPeriodFromDate(?string $date, int $schoolId): ?Period
+    {
+        if (!$date) {
+            return null;
+        }
+
+        $parsed = Carbon::parse($date);
+        $term = $parsed->month >= 7 ? 2 : 1;
+
+        return Period::firstOrCreate([
+            'school_id' => $schoolId,
+            'year' => $parsed->year,
+            'term' => $term,
+        ]);
+    }
+
+    private function ensureQuotaExists(int $institutionId, Period $period, int $schoolId): InstitutionQuota
+    {
+        $quota = InstitutionQuota::where('school_id', $schoolId)
+            ->where('institution_id', $institutionId)
+            ->where('period_id', $period->id)
+            ->first();
+
+        if (!$quota) {
+            throw ValidationException::withMessages([
+                'institution_id' => sprintf(
+                    'Set a quota for %d term %d before creating the application.',
+                    $period->year,
+                    $period->term
+                ),
+            ]);
+        }
+
+        return $quota;
     }
 
     private function resolvePrintableApplication(int $id)
@@ -221,7 +267,7 @@ class ApplicationController extends Controller
             })
             ->where('sdv.school_id', $schoolId)
             ->whereNull('apps.id')
-            ->select('sdv.id', 'sdv.name', 'sdv.major')
+            ->select('sdv.id', 'sdv.name', 'sdv.major', 'sdv.major_id')
             ->orderBy('sdv.name')
             ->get();
 
@@ -238,7 +284,7 @@ class ApplicationController extends Controller
             }
 
             $students = DB::table('student_details_view')
-                ->select('id', 'name', 'major')
+                ->select('id', 'name', 'major', 'major_id')
                 ->where('id', $studentId)
                 ->where('school_id', $schoolId)
                 ->orderBy('name')
@@ -256,13 +302,13 @@ class ApplicationController extends Controller
             ->orderBy('name')
             ->get();
 
-        $institutionPeriods = $this->periodsByInstitution(
+        $institutionQuotaMap = $this->quotasByInstitution(
             $institutions->pluck('id')->map(fn ($id) => (int) $id)->all(),
             $schoolId
         );
 
         $majorStaff = DB::table('major_staff_details_view')
-            ->select('major', 'major_slug', 'name', 'email', 'phone', 'supervisor_number')
+            ->select('major_id', 'major', 'name', 'email', 'phone', 'supervisor_number')
             ->where('school_id', $schoolId)
             ->orderBy('major')
             ->get();
@@ -271,8 +317,7 @@ class ApplicationController extends Controller
             'students' => $students,
             'studentsWithoutApplication' => $studentsWithoutApplication,
             'institutions' => $institutions,
-            'periods' => $this->periodOptions($schoolId),
-            'institutionPeriods' => $institutionPeriods,
+            'institutionQuotaMap' => $institutionQuotaMap,
             'statuses' => $this->statusOptions(),
             'canSetStudentAccess' => $role !== 'student',
             'isStudent' => $role === 'student',
@@ -297,15 +342,11 @@ class ApplicationController extends Controller
                 'required',
                 Rule::exists('institutions', 'id')->where(fn ($q) => $q->where('school_id', $schoolId)),
             ],
-            'period_id' => [
-                'required',
-                Rule::exists('periods', 'id')->where(fn ($q) => $q->where('school_id', $schoolId)),
-            ],
             'status' => ['required', Rule::in($statuses)],
             'submitted_at' => 'required|date',
             'notes' => 'nullable|string',
             'apply_missing' => 'nullable|boolean',
-            'planned_start_date' => 'nullable|date',
+            'planned_start_date' => 'required|date',
             'planned_end_date' => ['nullable', 'date', 'after_or_equal:planned_start_date'],
         ];
 
@@ -350,7 +391,16 @@ class ApplicationController extends Controller
         }
 
         $institutionId = (int) $validated['institution_id'];
-        $periodId = (int) $validated['period_id'];
+
+        $period = $this->inferPeriodFromDate($validated['planned_start_date'] ?? null, $schoolId);
+        if (!$period) {
+            throw ValidationException::withMessages([
+                'planned_start_date' => 'Planned start date is required to determine the internship period.',
+            ]);
+        }
+
+        $this->ensureQuotaExists($institutionId, $period, $schoolId);
+        $periodId = (int) $period->id;
 
         if (empty($selectedStudentIds)) {
             return back()->withErrors([
@@ -359,7 +409,7 @@ class ApplicationController extends Controller
         }
 
         $initialRecords = DB::table('student_details_view')
-            ->select('id', 'major')
+            ->select('id', 'major', 'major_id')
             ->where('school_id', $schoolId)
             ->whereIn('id', $selectedStudentIds)
             ->get();
@@ -370,24 +420,24 @@ class ApplicationController extends Controller
             ])->withInput();
         }
 
-        $missingMajor = $initialRecords->first(fn ($record) => trim((string) $record->major) === '');
+        $missingMajor = $initialRecords->first(fn ($record) => !$record->major_id);
         if ($missingMajor) {
             return back()->withErrors([
                 'student_ids' => 'All students must have a major before creating an application.',
             ])->withInput();
         }
 
-        $initialMajorSlug = $initialRecords
-            ->map(fn ($record) => MajorStaffAssignment::slugFromMajor((string) $record->major))
+        $initialMajorIds = $initialRecords
+            ->pluck('major_id')
             ->unique();
 
-        if ($initialMajorSlug->count() !== 1) {
+        if ($initialMajorIds->count() !== 1) {
             return back()->withErrors([
                 'student_ids' => 'Selected students must belong to the same major.',
             ])->withInput();
         }
 
-        $majorSlug = $initialMajorSlug->first();
+        $majorId = (int) $initialMajorIds->first();
 
         $targetStudentIds = $selectedStudentIds;
 
@@ -399,11 +449,11 @@ class ApplicationController extends Controller
                 })
                 ->where('sdv.school_id', $schoolId)
                 ->whereNull('apps.id')
-                ->select('sdv.id', 'sdv.major')
+                ->select('sdv.id', 'sdv.major_id')
                 ->get();
 
             $eligibleMissing = $missingStudents
-                ->filter(fn ($student) => trim((string) $student->major) !== '' && MajorStaffAssignment::slugFromMajor((string) $student->major) === $majorSlug)
+                ->filter(fn ($student) => (int) $student->major_id === $majorId)
                 ->pluck('id')
                 ->map(fn ($id) => (int) $id)
                 ->all();
@@ -418,7 +468,7 @@ class ApplicationController extends Controller
         }
 
         $allStudentRecords = DB::table('student_details_view')
-            ->select('id', 'major')
+            ->select('id', 'major', 'major_id')
             ->where('school_id', $schoolId)
             ->whereIn('id', $targetStudentIds)
             ->get();
@@ -429,29 +479,29 @@ class ApplicationController extends Controller
             ])->withInput();
         }
 
-        $invalidMajor = $allStudentRecords->first(fn ($record) => trim((string) $record->major) === '');
+        $invalidMajor = $allStudentRecords->first(fn ($record) => !$record->major_id);
         if ($invalidMajor) {
             return back()->withErrors([
                 'student_ids' => 'All selected students must have a major.',
             ])->withInput();
         }
 
-        $allMajorSlugs = $allStudentRecords
-            ->map(fn ($record) => MajorStaffAssignment::slugFromMajor((string) $record->major))
+        $allMajorIds = $allStudentRecords
+            ->pluck('major_id')
             ->unique();
 
-        if ($allMajorSlugs->count() !== 1) {
+        if ($allMajorIds->count() !== 1) {
             return back()->withErrors([
                 'student_ids' => 'All selected students must belong to the same major.',
             ])->withInput();
         }
 
-        $majorSlug = $allMajorSlugs->first();
+        $majorId = (int) $allMajorIds->first();
         $majorName = $allStudentRecords->pluck('major')->first();
 
         $staffAssignment = DB::table('major_staff_assignments')
             ->where('school_id', $schoolId)
-            ->where('major_slug', $majorSlug)
+            ->where('major_id', $majorId)
             ->first();
 
         if (!$staffAssignment) {
@@ -543,20 +593,79 @@ class ApplicationController extends Controller
         ]);
     }
 
+    public function printAll(string $school)
+    {
+        $schoolId = $this->schoolIdOrFail();
+        $generatedAt = now();
+
+        // Get all applications with under_review or draft status for this school
+        $applications = DB::table('application_details_view')
+            ->where('school_id', $schoolId)
+            ->whereIn('status', ['under_review', 'draft'])
+            ->orderBy('institution_name')
+            ->orderBy('period_year', 'desc')
+            ->orderBy('period_term', 'desc')
+            ->orderBy('student_name')
+            ->get();
+
+        if ($applications->isEmpty()) {
+            return redirect($this->schoolRoute('applications'))
+                ->with('error', 'No applications found with under review or draft status.');
+        }
+
+        // Group applications by institution and period for better organization
+        $groupedApplications = $applications->groupBy(function ($application) {
+            return $application->institution_id . '_' . $application->period_id;
+        });
+
+        $htmlParts = [];
+        $isFirstGroup = true;
+
+        foreach ($groupedApplications as $group) {
+            $firstApplication = $group->first();
+            
+            // Add page break between groups (except for the first one)
+            if (!$isFirstGroup) {
+                $htmlParts[] = '<div style="page-break-before: always;"></div>';
+            }
+            
+            // Render each group as a separate application PDF
+            $html = $this->renderPdfHtml($firstApplication, $generatedAt);
+            $htmlParts[] = $html;
+            
+            $isFirstGroup = false;
+        }
+
+        $combinedHtml = implode('', $htmlParts);
+        $pdfBinary = $this->generatePdfBinary($combinedHtml);
+        
+        $schoolCode = DB::table('schools')->where('id', $schoolId)->value('code') ?? 'school';
+        $fileName = sprintf('applications_all_%s_%s.pdf', 
+            strtolower($schoolCode), 
+            $generatedAt->format('Y-m-d_H-i-s')
+        );
+
+        return response($pdfBinary, 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="' . $fileName . '"',
+        ]);
+    }
+
     private function renderPdfHtml(object $application, $generatedAt): string
     {
         $school = DB::table('school_details_view')->where('id', $application->school_id)->first();
         abort_if(!$school, 404, 'School context missing.');
 
-        $majorSlug = MajorStaffAssignment::slugFromMajor((string) $application->student_major);
+        $majorId = (int) ($application->student_major_id ?? 0);
 
+        // Get all students with the same institution and period
         $peers = DB::table('application_details_view')
             ->where('school_id', $application->school_id)
             ->where('institution_id', $application->institution_id)
             ->where('period_id', $application->period_id)
             ->orderBy('student_name')
             ->get()
-            ->filter(fn ($row) => MajorStaffAssignment::slugFromMajor((string) $row->student_major) === $majorSlug)
+            ->filter(fn ($row) => (int) ($row->student_major_id ?? 0) === $majorId)
             ->values();
 
         return view('application.pdf', [
@@ -569,13 +678,64 @@ class ApplicationController extends Controller
 
     private function generatePdfBinary(string $html): string
     {
-        return Browsershot::html($html)
+        $browsershot = Browsershot::html($html)
             ->format('A4')
             ->margins(20, 16, 20, 16)
             ->showBackground()
-            ->waitUntilNetworkIdle()
-            ->setOption('args', ['--no-sandbox', '--disable-setuid-sandbox'])
-            ->pdf();
+            ->waitUntilNetworkIdle();
+        
+        // Set Chrome path from configuration
+        $chromePath = $this->getChromePath();
+        if ($chromePath) {
+            $browsershot->setChromePath($chromePath);
+        }
+        
+        // Set Chrome arguments from configuration
+        $args = config('browsershot.default_args', ['--no-sandbox', '--disable-setuid-sandbox']);
+        $browsershot->setOption('args', $args);
+        
+        return $browsershot->pdf();
+    }
+    
+    private function getChromePath(): ?string
+    {
+        // First, check if a specific path is configured
+        $configuredPath = config('browsershot.chrome_path') ?: getenv('BROWSERSHOT_CHROME_PATH');
+        if ($configuredPath && file_exists($configuredPath)) {
+            return $configuredPath;
+        }
+        
+        // Try to find Chrome in Puppeteer cache
+        $puppeteerCachePath = config('browsershot.puppeteer_cache_path') 
+            ?: getenv('PUPPETEER_CACHE_DIR') 
+            ?: getenv('HOME') . '/.cache/puppeteer';
+            
+        if (is_dir($puppeteerCachePath)) {
+            $chromeDirs = glob($puppeteerCachePath . '/chrome-headless-shell/*/chrome-headless-shell-linux64');
+            if (!empty($chromeDirs)) {
+                $chromePath = $chromeDirs[0] . '/chrome-headless-shell';
+                if (file_exists($chromePath)) {
+                    return $chromePath;
+                }
+            }
+        }
+        
+        // Try system Chrome/Chromium (Alpine Linux paths)
+        $systemPaths = [
+            '/usr/bin/chromium-browser',
+            '/usr/bin/chromium',
+            '/usr/bin/google-chrome',
+            '/usr/bin/google-chrome-stable',
+            '/snap/bin/chromium',
+        ];
+        
+        foreach ($systemPaths as $path) {
+            if (file_exists($path)) {
+                return $path;
+            }
+        }
+        
+        return null;
     }
 
     private function pdfFileName(object $application): string
@@ -605,7 +765,7 @@ class ApplicationController extends Controller
         }
 
         $studentsForInstitution = DB::table('application_details_view')
-            ->select('student_id', 'student_name', 'student_major')
+            ->select('student_id', 'student_name', 'student_major', 'student_major_id')
             ->where('institution_id', $application->institution_id)
             ->where('school_id', $schoolId)
             ->distinct()
@@ -622,28 +782,50 @@ class ApplicationController extends Controller
             ->orderBy('name')
             ->get();
 
-        $institutionPeriods = $this->periodsByInstitution(
+        $institutionQuotaMap = $this->quotasByInstitution(
             $institutions->pluck('id')->map(fn ($id) => (int) $id)->all(),
             $schoolId
         );
 
         $majorStaff = DB::table('major_staff_details_view')
-            ->select('major', 'major_slug', 'name', 'email', 'phone', 'supervisor_number')
+            ->select('major_id', 'major', 'name', 'email', 'phone', 'supervisor_number')
             ->where('school_id', $schoolId)
             ->orderBy('major')
             ->get();
+
+        // Prepare data for JavaScript
+        $allStudentsForInstitutionJson = $studentsForInstitution->map(function($student) {
+            return [
+                'id' => $student->student_id,
+                'name' => $student->student_name,
+                'major' => $student->student_major,
+                'major_id' => $student->student_major_id,
+            ];
+        });
+
+        $majorStaffJson = $majorStaff->map(function($staff) {
+            return [
+                'major_id' => (int) $staff->major_id,
+                'major' => $staff->major,
+                'name' => $staff->name,
+                'email' => $staff->email,
+                'phone' => $staff->phone,
+                'supervisor_number' => $staff->supervisor_number,
+            ];
+        })->values();
 
         return view('application.edit', [
             'application' => $application,
             'students' => $students,
             'allStudentsForInstitution' => $studentsForInstitution,
+            'allStudentsForInstitutionJson' => $allStudentsForInstitutionJson,
             'institutions' => $institutions,
-            'periods' => $this->periodOptions($schoolId),
-            'institutionPeriods' => $institutionPeriods,
+            'institutionQuotaMap' => $institutionQuotaMap,
             'statuses' => $this->statusOptions(),
             'canSetStudentAccess' => $role !== 'student',
             'isStudent' => $role === 'student',
             'majorStaff' => $majorStaff,
+            'majorStaffJson' => $majorStaffJson,
         ]);
     }
 
@@ -679,15 +861,11 @@ class ApplicationController extends Controller
                 'required',
                 Rule::exists('institutions', 'id')->where(fn ($q) => $q->where('school_id', $schoolId)),
             ],
-            'period_id' => [
-                'required',
-                Rule::exists('periods', 'id')->where(fn ($q) => $q->where('school_id', $schoolId)),
-            ],
             'status' => ['required', Rule::in($statuses)],
             'submitted_at' => 'required|date',
             'notes' => 'nullable|string',
             'apply_all' => 'nullable|boolean',
-            'planned_start_date' => 'nullable|date',
+            'planned_start_date' => 'required|date',
             'planned_end_date' => ['nullable', 'date', 'after_or_equal:planned_start_date'],
         ];
 
@@ -737,11 +915,21 @@ class ApplicationController extends Controller
         $targetApplications = $targetQuery->get(['id', 'student_id']);
         $targetIds = $targetApplications->pluck('id')->all();
 
+        $period = $this->inferPeriodFromDate($validated['planned_start_date'] ?? null, $schoolId);
+        if (!$period) {
+            throw ValidationException::withMessages([
+                'planned_start_date' => 'Planned start date is required to determine the internship period.',
+            ]);
+        }
+
+        $this->ensureQuotaExists((int) $validated['institution_id'], $period, $schoolId);
+        $periodId = (int) $period->id;
+
         foreach ($targetApplications as $target) {
             $duplicate = Application::where('school_id', $schoolId)
                 ->where('student_id', $target->student_id)
                 ->where('institution_id', $validated['institution_id'])
-                ->where('period_id', $validated['period_id'])
+                ->where('period_id', $periodId)
                 ->whereNotIn('id', $targetIds)
                 ->exists();
 
@@ -755,7 +943,7 @@ class ApplicationController extends Controller
         $targetStudentIdsFinal = $targetApplications->pluck('student_id')->map(fn ($id) => (int) $id)->all();
 
         $studentRecords = DB::table('student_details_view')
-            ->select('id', 'major')
+            ->select('id', 'major', 'major_id')
             ->where('school_id', $schoolId)
             ->whereIn('id', $targetStudentIdsFinal)
             ->get();
@@ -766,29 +954,29 @@ class ApplicationController extends Controller
             ])->withInput();
         }
 
-        $missingMajor = $studentRecords->first(fn ($record) => trim((string) $record->major) === '');
+        $missingMajor = $studentRecords->first(fn ($record) => !$record->major_id);
         if ($missingMajor) {
             return back()->withErrors([
                 'student_ids' => 'All selected students must have a major.',
             ])->withInput();
         }
 
-        $majorSlugs = $studentRecords
-            ->map(fn ($record) => MajorStaffAssignment::slugFromMajor((string) $record->major))
+        $majorIds = $studentRecords
+            ->pluck('major_id')
             ->unique();
 
-        if ($majorSlugs->count() !== 1) {
+        if ($majorIds->count() !== 1) {
             return back()->withErrors([
                 'student_ids' => 'Selected students must share the same major.',
             ])->withInput();
         }
 
-        $majorSlug = $majorSlugs->first();
+        $majorId = (int) $majorIds->first();
         $majorName = $studentRecords->pluck('major')->first();
 
         $staffAssignment = DB::table('major_staff_assignments')
             ->where('school_id', $schoolId)
-            ->where('major_slug', $majorSlug)
+            ->where('major_id', $majorId)
             ->first();
 
         if (!$staffAssignment) {
@@ -805,7 +993,7 @@ class ApplicationController extends Controller
 
         $updateData = [
             'institution_id' => $validated['institution_id'],
-            'period_id' => $validated['period_id'],
+            'period_id' => $periodId,
             'status' => $validated['status'],
             'submitted_at' => $validated['submitted_at'],
             'planned_start_date' => $validated['planned_start_date'] ?? null,

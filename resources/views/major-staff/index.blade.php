@@ -40,7 +40,8 @@
                             </td>
                         </tr>
                     @empty
-                        <tr>
+          
+                    <tr>
                             <td colspan="6" class="text-center py-4">No contacts found.</td>
                         </tr>
                     @endforelse

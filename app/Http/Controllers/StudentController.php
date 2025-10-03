@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\SchoolMajor;
 use App\Models\Student;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -177,7 +178,15 @@ class StudentController extends Controller
         if (session('role') === 'student') {
             abort(401);
         }
-        return view('student.create');
+        
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404);
+        
+        $majors = SchoolMajor::forSchool($schoolId)->active()->orderBy('name')->get();
+        
+        return view('student.create', [
+            'majors' => $majors,
+        ]);
     }
 
     public function store(Request $request)
@@ -208,7 +217,7 @@ class StudentController extends Controller
                 'string',
                 Rule::unique('students', 'national_sn')->where(fn ($q) => $q->where('school_id', $schoolId)),
             ],
-            'major' => 'required|string',
+            'major_id' => 'required|exists:school_majors,id',
             'class' => 'required|string|max:100',
             'batch' => 'required|string',
             'notes' => 'nullable|string',
@@ -229,7 +238,7 @@ class StudentController extends Controller
             'school_id' => $schoolId,
             'student_number' => $data['student_number'],
             'national_sn' => $data['national_sn'],
-            'major' => $data['major'],
+            'major_id' => $data['major_id'],
             'class' => $data['class'],
             'batch' => $data['batch'],
             'notes' => $data['notes'] ?? null,
@@ -251,7 +260,15 @@ class StudentController extends Controller
         $student = $studentQuery->first();
         abort_if(!$student, 404);
 
-        return view('student.edit', compact('student'));
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404);
+        
+        $majors = SchoolMajor::forSchool($schoolId)->active()->orderBy('name')->get();
+
+        return view('student.edit', [
+            'student' => $student,
+            'majors' => $majors,
+        ]);
     }
 
     public function update(Request $request, $school, $id)
@@ -294,7 +311,7 @@ class StudentController extends Controller
                     ->ignore($student->id)
                     ->where(fn ($q) => $q->where('school_id', $schoolId)),
             ],
-            'major' => 'required|string',
+            'major_id' => 'required|exists:school_majors,id',
             'class' => 'required|string|max:100',
             'batch' => 'required|string',
             'notes' => 'nullable|string',
@@ -312,7 +329,7 @@ class StudentController extends Controller
         $student->update([
             'student_number' => $data['student_number'],
             'national_sn' => $data['national_sn'],
-            'major' => $data['major'],
+            'major_id' => $data['major_id'],
             'class' => $data['class'],
             'batch' => $data['batch'],
             'notes' => $data['notes'] ?? null,

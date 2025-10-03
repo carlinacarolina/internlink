@@ -19,7 +19,7 @@ class InstitutionController extends Controller
         'name',
         'city',
         'province',
-        'industry',
+        'industry_for_name',
         'contact_name',
         'contact_email',
         'contact_phone',
@@ -30,7 +30,7 @@ class InstitutionController extends Controller
         'name',
         'city',
         'province',
-        'industry',
+        'industry_for_name',
         'contact_name',
         'contact_email',
         'contact_phone',
@@ -48,15 +48,19 @@ class InstitutionController extends Controller
         return [$cities, $provinces];
     }
 
-    protected function loadIndustries(int $schoolId): array
+    protected function loadSchoolMajors(int $schoolId): array
     {
-        return DB::table('institutions')
+        return DB::table('school_majors')
             ->where('school_id', $schoolId)
-            ->whereNotNull('industry')
-            ->where('industry', '<>', '')
-            ->distinct()
-            ->orderBy('industry')
-            ->pluck('industry')
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get()
+            ->map(function ($major) {
+                return (object) [
+                    'id' => $major->id,
+                    'name' => $major->name,
+                ];
+            })
             ->toArray();
     }
 
@@ -74,7 +78,8 @@ class InstitutionController extends Controller
                 'iv.city',
                 'iv.province',
                 'iv.website',
-                'iv.industry',
+                'iv.industry_for',
+                'iv.industry_for_name',
                 'iv.notes',
                 'iv.photo',
                 'iv.contact_name',
@@ -115,7 +120,7 @@ class InstitutionController extends Controller
             'city' => 'City',
             'province' => 'Province',
             'website' => 'Website',
-            'industry' => 'Industry',
+            'industry_for_name' => 'Industry For',
             'contact_name' => 'Contact Name',
             'contact_email' => 'Contact E-Mail',
             'contact_phone' => 'Contact Phone',
@@ -216,14 +221,14 @@ class InstitutionController extends Controller
         $institutions = $query->paginate(10)->withQueryString();
 
         [$cities, $provinces] = $this->loadRegions();
-        $industries = $this->loadIndustries($schoolId);
+        $schoolMajors = $this->loadSchoolMajors($schoolId);
 
         return view('institution.index', [
             'institutions' => $institutions,
             'filters' => $filters,
             'cities' => $cities,
             'provinces' => $provinces,
-            'industries' => $industries,
+            'schoolMajors' => $schoolMajors,
         ]);
     }
 
@@ -265,8 +270,8 @@ class InstitutionController extends Controller
         abort_if(!$schoolId, 404, 'School context missing.');
         [$cities, $provinces] = $this->loadRegions();
         $periods = Period::where('school_id', $schoolId)->orderByDesc('year')->orderByDesc('term')->get();
-        $industries = $this->loadIndustries($schoolId);
-        return view('institution.create', compact('cities', 'provinces', 'periods', 'industries'));
+        $schoolMajors = $this->loadSchoolMajors($schoolId);
+        return view('institution.create', compact('cities', 'provinces', 'periods', 'schoolMajors'));
     }
 
     public function store(Request $request)
@@ -287,7 +292,7 @@ class InstitutionController extends Controller
             'city' => 'required|string',
             'province' => 'required|string',
             'website' => 'nullable|string|max:255',
-            'industry' => 'required|string|max:100',
+            'industry_for' => 'required|exists:school_majors,id',
             'notes' => 'nullable|string',
             'photo' => 'nullable|string|max:255',
             'contact_name' => 'required|string|max:150',
@@ -318,7 +323,7 @@ class InstitutionController extends Controller
                 'city' => $data['city'],
                 'province' => $data['province'],
                 'website' => $data['website'] ?? null,
-                'industry' => $data['industry'],
+                'industry_for' => $data['industry_for'],
                 'notes' => $data['notes'] ?? null,
                 'photo' => $data['photo'] ?? null,
             ]);
@@ -373,7 +378,7 @@ class InstitutionController extends Controller
             'city' => $inst->city,
             'province' => $inst->province,
             'website' => $inst->website,
-            'industry' => $inst->industry,
+            'industry_for' => $inst->industry_for,
             'notes' => $inst->notes,
             'photo' => $inst->photo,
             'contact_name' => $contact->name ?? null,
@@ -388,8 +393,8 @@ class InstitutionController extends Controller
         ];
         [$cities, $provinces] = $this->loadRegions();
         $periods = Period::where('school_id', $schoolId)->orderByDesc('year')->orderByDesc('term')->get();
-        $industries = $this->loadIndustries($schoolId);
-        return view('institution.edit', compact('institution', 'cities', 'provinces', 'periods', 'industries'));
+        $schoolMajors = $this->loadSchoolMajors($schoolId);
+        return view('institution.edit', compact('institution', 'cities', 'provinces', 'periods', 'schoolMajors'));
     }
 
     public function update(Request $request, $school, $id)
@@ -406,7 +411,7 @@ class InstitutionController extends Controller
             'city' => 'required|string',
             'province' => 'required|string',
             'website' => 'nullable|string|max:255',
-            'industry' => 'required|string|max:100',
+            'industry_for' => 'required|exists:school_majors,id',
             'notes' => 'nullable|string',
             'photo' => 'nullable|string|max:255',
             'contact_name' => 'required|string|max:150',
@@ -435,7 +440,7 @@ class InstitutionController extends Controller
                 'city' => $data['city'],
                 'province' => $data['province'],
                 'website' => $data['website'] ?? null,
-                'industry' => $data['industry'],
+                'industry_for' => $data['industry_for'],
                 'notes' => $data['notes'] ?? null,
                 'photo' => $data['photo'] ?? null,
             ]);

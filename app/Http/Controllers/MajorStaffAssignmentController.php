@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\MajorStaffAssignment;
+use App\Models\SchoolMajor;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -51,7 +52,7 @@ class MajorStaffAssignmentController extends Controller
             'school_id' => $schoolId,
             'supervisor_id' => $validated['supervisor_id'],
             'major' => $validated['major'],
-            'major_slug' => MajorStaffAssignment::slugFromMajor($validated['major']),
+            'major_id' => $validated['major_id'],
         ]);
 
         return redirect($this->schoolRoute('major-contacts'))->with('status', 'Staff contact assigned successfully.');
@@ -82,7 +83,7 @@ class MajorStaffAssignmentController extends Controller
         $assignment->fill([
             'supervisor_id' => $validated['supervisor_id'],
             'major' => $validated['major'],
-            'major_slug' => MajorStaffAssignment::slugFromMajor($validated['major']),
+            'major_id' => $validated['major_id'],
         ]);
         $assignment->save();
 
@@ -110,15 +111,7 @@ class MajorStaffAssignmentController extends Controller
             ->orderBy('name')
             ->get();
 
-        $majors = DB::table('student_details_view')
-            ->select('major')
-            ->where('school_id', $schoolId)
-            ->whereNotNull('major')
-            ->whereRaw("TRIM(major) <> ''")
-            ->distinct()
-            ->orderBy('major')
-            ->pluck('major')
-            ->all();
+        $majors = SchoolMajor::forSchool($schoolId)->active()->orderBy('name')->get();
 
         return [
             'assignment' => $assignment,
@@ -130,7 +123,11 @@ class MajorStaffAssignmentController extends Controller
     private function validatePayload(Request $request, int $schoolId, ?int $assignmentId = null): array
     {
         $validated = $request->validate([
-            'major' => ['required', 'string', 'max:150'],
+            'major_id' => [
+                'required',
+                'integer',
+                Rule::exists('school_majors', 'id')->where(fn ($query) => $query->where('school_id', $schoolId)),
+            ],
             'supervisor_id' => [
                 'required',
                 'integer',
@@ -138,23 +135,22 @@ class MajorStaffAssignmentController extends Controller
             ],
         ]);
 
-        $major = trim($validated['major']);
-        $slug = MajorStaffAssignment::slugFromMajor($major);
-
+        $major = SchoolMajor::find($validated['major_id']);
         $duplicate = MajorStaffAssignment::where('school_id', $schoolId)
-            ->where('major_slug', $slug)
+            ->where('major_id', $validated['major_id'])
             ->when($assignmentId, fn ($query) => $query->where('id', '!=', $assignmentId))
             ->exists();
 
         if ($duplicate) {
             throw ValidationException::withMessages([
-                'major' => 'A staff contact already exists for this major.',
+                'major_id' => 'A staff contact already exists for this major.',
             ]);
         }
 
         return [
-            'major' => $major,
+            'major_id' => (int) $validated['major_id'],
             'supervisor_id' => (int) $validated['supervisor_id'],
+            'major' => $major->name,
         ];
     }
 

@@ -26,7 +26,7 @@ class InstitutionFactory extends Factory
             'city' => $this->faker->city(),
             'province' => $this->faker->state(),
             'website' => $this->faker->url(),
-            'industry' => $this->faker->randomElement(['Technology','Manufacturing','Healthcare','Finance','Education']),
+            'industry_for' => null, // Will be set by seeder
             'notes' => null,
             'photo' => null,
         ];

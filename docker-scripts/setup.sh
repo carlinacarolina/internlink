@@ -88,6 +88,13 @@ $COMPOSE_CMD up -d
 print_status "Waiting for database to be ready..."
 sleep 10
 
+# Fix permissions inside container
+print_status "Fixing permissions inside container..."
+$COMPOSE_CMD exec app chown -R www-data:www-data /var/www/html/storage
+$COMPOSE_CMD exec app chown -R www-data:www-data /var/www/html/bootstrap/cache
+$COMPOSE_CMD exec app chmod -R 775 /var/www/html/storage
+$COMPOSE_CMD exec app chmod -R 775 /var/www/html/bootstrap/cache
+
 # Run Laravel setup commands
 print_status "Running Laravel setup commands..."
 $COMPOSE_CMD exec app php artisan config:clear

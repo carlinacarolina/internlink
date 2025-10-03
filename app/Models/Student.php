@@ -15,6 +15,7 @@ class Student extends Model
         'student_number',
         'national_sn',
         'major',
+        'major_id',
         'class',
         'batch',
         'notes',
@@ -33,5 +34,10 @@ class Student extends Model
     public function school()
     {
         return $this->belongsTo(School::class);
+    }
+
+    public function major()
+    {
+        return $this->belongsTo(SchoolMajor::class, 'major_id');
     }
 }

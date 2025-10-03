@@ -16,7 +16,7 @@ class Institution extends Model
         'city',
         'province',
         'website',
-        'industry',
+        'industry_for',
         'notes',
         'photo',
     ];
@@ -34,5 +34,10 @@ class Institution extends Model
     public function school()
     {
         return $this->belongsTo(School::class);
+    }
+
+    public function industryFor()
+    {
+        return $this->belongsTo(SchoolMajor::class, 'industry_for');
     }
 }

@@ -52,7 +52,7 @@
                 <th scope="col">Name</th>
                 <th scope="col">City</th>
                 <th scope="col">Province</th>
-                <th scope="col">Industry</th>
+                <th scope="col">Industry For</th>
                 <th scope="col">Contact Name</th>
                 <th scope="col">Contact E-Mail</th>
                 <th scope="col">Contact Phone</th>
@@ -70,7 +70,7 @@
                 <td>{{ $institution->name }}</td>
                 <td>{{ $institution->city }}</td>
                 <td>{{ $institution->province }}</td>
-                <td>{{ $institution->industry }}</td>
+                <td>{{ $institution->industry_for_name ?? '—' }}</td>
                 <td>{{ $institution->contact_name ?? '—' }}</td>
                 <td>{{ $institution->contact_email ?? '—' }}</td>
                 <td>{{ $institution->contact_phone ?? '—' }}</td>
@@ -162,15 +162,12 @@
                 <input type="text" class="form-control" id="filter-website" name="website" value="{{ request('website') }}">
             </div>
             <div>
-                <label class="form-label" for="filter-industry">Industry</label>
-                <select class="form-select tom-select" id="filter-industry" name="industry" data-tom-create="true">
-                    <option value="">Select industry</option>
-                    @foreach($industries as $industry)
-                        <option value="{{ $industry }}" @selected(request('industry') === $industry)>{{ $industry }}</option>
+                <label class="form-label" for="filter-industry-for-name">Industry For</label>
+                <select class="form-select tom-select" id="filter-industry-for-name" name="industry_for_name">
+                    <option value="">Select major</option>
+                    @foreach($schoolMajors as $major)
+                        <option value="{{ $major->name }}" @selected(request('industry_for_name') === $major->name)>{{ $major->name }}</option>
                     @endforeach
-                    @if(request('industry') && !in_array(request('industry'), $industries))
-                        <option value="{{ request('industry') }}" selected>{{ request('industry') }}</option>
-                    @endif
                 </select>
             </div>
             @php($hasNotes = request('has_notes'))

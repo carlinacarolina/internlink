@@ -8,14 +8,16 @@ use App\Models\Institution;
 use App\Models\Period;
 use App\Models\Student;
 use Carbon\Carbon;
+use Faker\Factory as Faker;
 
 class ApplicationSeeder extends Seeder
 {
     public function run(): void
     {
+        $faker = Faker::create();
         $now = Carbon::now();
 
-        Student::with('school')->get()->each(function ($student, $index) use ($now) {
+        Student::with('school')->get()->each(function ($student, $index) use ($now, $faker) {
             $school = $student->school;
             if (!$school) {
                 return;
@@ -28,8 +30,19 @@ class ApplicationSeeder extends Seeder
                 return;
             }
 
-            $institution = $institutions[$index % $institutions->count()];
-            $period = $periods[$index % $periods->count()];
+            // Randomly select institution and period for more variety
+            $institution = $institutions->random();
+            $period = $periods->random();
+
+            // Generate more realistic status distribution
+            $statusOptions = ['submitted', 'under_review', 'accepted', 'rejected'];
+            $statusWeights = [0.3, 0.2, 0.4, 0.1]; // More accepted applications
+            $status = $faker->randomElements($statusOptions, 1, $statusWeights)[0];
+
+            // Generate realistic dates
+            $submittedAt = $now->copy()->subDays($faker->numberBetween(1, 90));
+            $plannedStartDate = $submittedAt->copy()->addDays($faker->numberBetween(7, 30));
+            $plannedEndDate = $plannedStartDate->copy()->addDays($faker->numberBetween(30, 120));
 
             Application::updateOrCreate(
                 [
@@ -39,10 +52,12 @@ class ApplicationSeeder extends Seeder
                 ],
                 [
                     'school_id' => $school->id,
-                    'status' => $index % 3 === 0 ? 'submitted' : 'accepted',
-                    'submitted_at' => $now->copy()->subDays($index),
-                    'student_access' => true,
-                    'notes' => null,
+                    'status' => $status,
+                    'submitted_at' => $submittedAt,
+                    'planned_start_date' => $plannedStartDate,
+                    'planned_end_date' => $plannedEndDate,
+                    'student_access' => $faker->boolean(85), // 85% chance of student access
+                    'notes' => $faker->optional(0.4)->sentence(12),
                 ]
             );
         });
