@@ -41,8 +41,8 @@
                 @endif
             </dd>
 
-            <dt class="col-sm-4">Industry</dt>
-            <dd class="col-sm-8">{{ $institution->industry ?? '—' }}</dd>
+            <dt class="col-sm-4">Industry For</dt>
+            <dd class="col-sm-8">{{ $institution->industry_for_name ?? '—' }}</dd>
 
             <dt class="col-sm-4">Notes</dt>
             <dd class="col-sm-8">{{ $institution->notes ?? '—' }}</dd>
@@ -84,5 +84,5 @@
         </div>
     </div>
 </div>
-<a href="/institutions" class="btn btn-secondary">Back</a>
+<a href="{{ $schoolRoute('institutions') }}" class="btn btn-secondary">Back</a>
 @endsection

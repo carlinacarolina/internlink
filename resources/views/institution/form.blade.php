@@ -51,16 +51,13 @@
             <input type="text" id="institution-website" name="website" class="form-control" value="{{ old('website', optional($institution)->website) }}" placeholder="https://example.com">
         </div>
         <div class="col-12 col-lg-6">
-            <label class="form-label" for="institution-industry">Industry</label>
-            @php($currentIndustry = old('industry', optional($institution)->industry))
-            <select id="institution-industry" name="industry" class="form-select tom-select" data-tom-create="true" data-tom-allow-empty="true">
-                <option value="">Select industry</option>
-                @foreach($industries as $industry)
-                    <option value="{{ $industry }}" @selected($currentIndustry === $industry)>{{ $industry }}</option>
+            <label class="form-label" for="institution-industry-for">Industry For</label>
+            @php($currentIndustryFor = old('industry_for', optional($institution)->industry_for))
+            <select id="institution-industry-for" name="industry_for" class="form-select tom-select" data-tom-allow-empty="true">
+                <option value="">Select major</option>
+                @foreach($schoolMajors as $major)
+                    <option value="{{ $major->id }}" @selected($currentIndustryFor == $major->id)>{{ $major->name }}</option>
                 @endforeach
-                @if($currentIndustry && !in_array($currentIndustry, $industries))
-                    <option value="{{ $currentIndustry }}" selected>{{ $currentIndustry }}</option>
-                @endif
             </select>
         </div>
         <div class="col-12">
@@ -155,7 +152,7 @@
     </div>
 
     <div class="d-flex gap-2 justify-content-end border-top pt-3 mt-2">
-        <a href="/institutions" class="btn btn-secondary">Cancel</a>
+        <a href="{{ $schoolRoute('institutions') }}" class="btn btn-secondary">Cancel</a>
         <button type="submit" class="btn btn-primary">Save</button>
     </div>
 </form>

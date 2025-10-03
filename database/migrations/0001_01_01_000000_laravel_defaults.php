@@ -75,18 +75,55 @@ return new class extends Migration
           RETURN NEW;
         END $$;
 
+        CREATE TABLE IF NOT EXISTS app.schools (
+          id         bigserial PRIMARY KEY,
+          name       varchar(150) NOT NULL UNIQUE,
+          address    text NOT NULL,
+          phone      varchar(30) NOT NULL UNIQUE,
+          email      citext NOT NULL UNIQUE,
+          website    text NULL,
+          city       varchar(100),
+          postal_code varchar(20),
+          principal_name varchar(150),
+          principal_nip varchar(50),
+          code       varchar(20) NOT NULL UNIQUE,
+          created_at timestamptz NOT NULL DEFAULT now(),
+          updated_at timestamptz NOT NULL DEFAULT now()
+        );
+
+        DO $$
+        BEGIN
+          IF NOT EXISTS (
+            SELECT 1 FROM pg_trigger
+            WHERE tgname = 'trg_schools_updated_at'
+          ) THEN
+            CREATE TRIGGER trg_schools_updated_at
+            BEFORE UPDATE ON app.schools
+            FOR EACH ROW EXECUTE FUNCTION app.set_updated_at();
+          END IF;
+        END $$;
+
         CREATE TABLE IF NOT EXISTS core.users (
           id                 bigserial PRIMARY KEY,
           name               varchar(255) NOT NULL,
-          email              citext NOT NULL UNIQUE,
+          email              citext NOT NULL,
           email_verified_at  timestamptz NULL,
           phone              varchar(15) NULL,
           password           varchar(255) NOT NULL,
           role               public.user_role_enum NOT NULL DEFAULT 'student',
+          school_id          bigint NULL REFERENCES app.schools(id) ON UPDATE CASCADE ON DELETE SET NULL,
           remember_token     varchar(100) NULL,
           created_at         timestamptz NOT NULL DEFAULT now(),
-          updated_at         timestamptz NOT NULL DEFAULT now()
+          updated_at         timestamptz NOT NULL DEFAULT now(),
+          CONSTRAINT chk_users_school_presence
+            CHECK ((role = 'developer' AND school_id IS NULL) OR (role <> 'developer' AND school_id IS NOT NULL))
         );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_users_email_developer
+          ON core.users (email) WHERE role = 'developer';
+
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_users_school_email
+          ON core.users (school_id, email) WHERE role <> 'developer';
 
         DO $$
         BEGIN
@@ -184,7 +221,12 @@ return new class extends Migration
           DROP TABLE IF EXISTS core.cache_locks;
           DROP TABLE IF EXISTS core.cache;
 
+          DROP INDEX IF EXISTS uq_users_school_email;
+          DROP INDEX IF EXISTS uq_users_email_developer;
+          ALTER TABLE core.users DROP CONSTRAINT IF EXISTS chk_users_school_presence;
           DROP TABLE IF EXISTS core.users;
+
+          DROP TABLE IF EXISTS app.schools;
 
           DROP FUNCTION IF EXISTS app.validate_quota_not_over();
           DROP FUNCTION IF EXISTS app.assert_not_student(bigint);

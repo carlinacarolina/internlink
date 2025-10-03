@@ -4,16 +4,27 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use App\Models\Period;
+use App\Models\School;
 
 class PeriodSeeder extends Seeder
 {
     public function run(): void
     {
-        for ($i = 1; $i <= 50; $i++) {
-            Period::create([
-                'year' => 2020 + $i,
-                'term' => ($i % 2) + 1,
-            ]);
+        $years = [2024, 2025, 2026];
+
+        foreach (School::all() as $school) {
+            foreach ($years as $year) {
+                foreach ([1, 2] as $term) {
+                    Period::updateOrCreate(
+                        [
+                            'school_id' => $school->id,
+                            'year' => $year,
+                            'term' => $term,
+                        ],
+                        []
+                    );
+                }
+            }
         }
     }
 }

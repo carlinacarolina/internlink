@@ -2,17 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\SchoolMajor;
 use App\Models\Student;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 
 class StudentController extends Controller
 {
-    /**
-     * Columns searched and displayed. Adjust here if needed.
-     */
     private const SEARCH_COLUMNS = [
         'name',
         'email',
@@ -42,6 +41,10 @@ class StudentController extends Controller
     {
         $query = DB::table('student_details_view')
             ->select(array_merge(self::DISPLAY_COLUMNS, self::EXTRA_COLUMNS));
+
+        if ($school = $this->currentSchool()) {
+            $query->where('school_id', $school->id);
+        }
 
         if (session('role') === 'student') {
             $query->where('id', $this->currentStudentId());
@@ -116,12 +119,10 @@ class StudentController extends Controller
         $hasNotes = $request->query('has_notes');
         if (in_array($hasNotes, ['true', 'false'], true)) {
             if ($hasNotes === 'true') {
-                $query->whereNotNull('notes')
-                    ->whereRaw("TRIM(notes) <> ''");
+                $query->whereNotNull('notes')->whereRaw("TRIM(notes) <> ''");
             } else {
                 $query->where(function ($sub) {
-                    $sub->whereNull('notes')
-                        ->orWhereRaw("TRIM(COALESCE(notes, '')) = ''");
+                    $sub->whereNull('notes')->orWhereRaw("TRIM(COALESCE(notes, '')) = ''");
                 });
             }
             $filters['has_notes'] = 'Has Notes?: ' . ucfirst($hasNotes);
@@ -130,12 +131,10 @@ class StudentController extends Controller
         $hasPhoto = $request->query('has_photo');
         if (in_array($hasPhoto, ['true', 'false'], true)) {
             if ($hasPhoto === 'true') {
-                $query->whereNotNull('photo')
-                    ->whereRaw("TRIM(photo) <> ''");
+                $query->whereNotNull('photo')->whereRaw("TRIM(photo) <> ''");
             } else {
                 $query->where(function ($sub) {
-                    $sub->whereNull('photo')
-                        ->orWhereRaw("TRIM(COALESCE(photo, '')) = ''");
+                    $sub->whereNull('photo')->orWhereRaw("TRIM(COALESCE(photo, '')) = ''");
                 });
             }
             $filters['has_photo'] = 'Has Photo?: ' . ucfirst($hasPhoto);
@@ -145,18 +144,12 @@ class StudentController extends Controller
             $qLower = strtolower($q);
             $query->where(function ($sub) use ($qLower) {
                 foreach (self::SEARCH_COLUMNS as $col) {
-                    $sub->orWhereRaw(
-                        'LOWER(COALESCE(' . $col . ", '')) LIKE ?",
-                        ['%' . $qLower . '%']
-                    );
+                    $sub->orWhereRaw('LOWER(COALESCE(' . $col . ", '')) LIKE ?", ['%' . $qLower . '%']);
                 }
             });
         }
 
-        $students = $query
-            ->orderByDesc('created_at')
-            ->paginate(10)
-            ->withQueryString();
+        $students = $query->orderByDesc('created_at')->paginate(10)->withQueryString();
 
         return view('student.index', [
             'students' => $students,
@@ -164,13 +157,19 @@ class StudentController extends Controller
         ]);
     }
 
-    public function show($id)
+    public function show($school, $id)
     {
-        $student = DB::table('student_details_view')->where('id', $id)->first();
+        $studentQuery = DB::table('student_details_view')->where('id', $id);
+        if ($school = $this->currentSchool()) {
+            $studentQuery->where('school_id', $school->id);
+        }
+        $student = $studentQuery->first();
         abort_if(!$student, 404);
+
         if (session('role') === 'student' && $student->id !== $this->currentStudentId()) {
             abort(401);
         }
+
         return view('student.show', compact('student'));
     }
 
@@ -179,7 +178,15 @@ class StudentController extends Controller
         if (session('role') === 'student') {
             abort(401);
         }
-        return view('student.create');
+        
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404);
+        
+        $majors = SchoolMajor::forSchool($schoolId)->active()->orderBy('name')->get();
+        
+        return view('student.create', [
+            'majors' => $majors,
+        ]);
     }
 
     public function store(Request $request)
@@ -187,14 +194,30 @@ class StudentController extends Controller
         if (session('role') === 'student') {
             abort(401);
         }
+
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 400, 'School context required.');
+
         $data = $request->validate([
             'name' => 'required|string',
-            'email' => 'required|email|unique:users,email',
+            'email' => [
+                'required',
+                'email',
+                Rule::unique('users', 'email')->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
             'phone' => 'nullable|string',
             'password' => 'required|string',
-            'student_number' => 'required|string|unique:students,student_number',
-            'national_sn' => 'required|string|unique:students,national_sn',
-            'major' => 'required|string',
+            'student_number' => [
+                'required',
+                'string',
+                Rule::unique('students', 'student_number')->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
+            'national_sn' => [
+                'required',
+                'string',
+                Rule::unique('students', 'national_sn')->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
+            'major_id' => 'required|exists:school_majors,id',
             'class' => 'required|string|max:100',
             'batch' => 'required|string',
             'notes' => 'nullable|string',
@@ -207,48 +230,88 @@ class StudentController extends Controller
             'phone' => $data['phone'] ?? null,
             'password' => Hash::make($data['password']),
             'role' => 'student',
+            'school_id' => $schoolId,
         ]);
 
         Student::create([
             'user_id' => $user->id,
+            'school_id' => $schoolId,
             'student_number' => $data['student_number'],
             'national_sn' => $data['national_sn'],
-            'major' => $data['major'],
+            'major_id' => $data['major_id'],
             'class' => $data['class'],
             'batch' => $data['batch'],
             'notes' => $data['notes'] ?? null,
             'photo' => $data['photo'] ?? null,
         ]);
 
-        return redirect('/students')->with('status', 'Student created.');
+        return redirect($this->schoolRoute('students'))->with('status', 'Student created.');
     }
 
-    public function edit($id)
+    public function edit($school, $id)
     {
         if (session('role') === 'student' && (int) $id !== $this->currentStudentId()) {
             abort(401);
         }
-        $student = DB::table('student_details_view')->where('id', $id)->first();
+        $studentQuery = DB::table('student_details_view')->where('id', $id);
+        if ($school = $this->currentSchool()) {
+            $studentQuery->where('school_id', $school->id);
+        }
+        $student = $studentQuery->first();
         abort_if(!$student, 404);
-        return view('student.edit', compact('student'));
+
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404);
+        
+        $majors = SchoolMajor::forSchool($schoolId)->active()->orderBy('name')->get();
+
+        return view('student.edit', [
+            'student' => $student,
+            'majors' => $majors,
+        ]);
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, $school, $id)
     {
-        $student = Student::findOrFail($id);
+        $studentQuery = Student::with('user')->where('id', $id);
+        if ($schoolId = $this->currentSchoolId()) {
+            $studentQuery->where('school_id', $schoolId);
+        }
+        $student = $studentQuery->firstOrFail();
+
         if (session('role') === 'student' && $student->user_id !== session('user_id')) {
             abort(401);
         }
+
         $user = $student->user;
+        $schoolId = $student->school_id ?? $this->currentSchoolId();
 
         $data = $request->validate([
             'name' => 'required|string',
-            'email' => 'required|email|unique:users,email,' . $user->id,
+            'email' => [
+                'required',
+                'email',
+                Rule::unique('users', 'email')
+                    ->ignore($user->id)
+                    ->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
             'phone' => 'nullable|string',
             'password' => 'nullable|string',
-            'student_number' => 'required|string|unique:students,student_number,' . $student->id,
-            'national_sn' => 'required|string|unique:students,national_sn,' . $student->id,
-            'major' => 'required|string',
+            'student_number' => [
+                'required',
+                'string',
+                Rule::unique('students', 'student_number')
+                    ->ignore($student->id)
+                    ->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
+            'national_sn' => [
+                'required',
+                'string',
+                Rule::unique('students', 'national_sn')
+                    ->ignore($student->id)
+                    ->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
+            'major_id' => 'required|exists:school_majors,id',
             'class' => 'required|string|max:100',
             'batch' => 'required|string',
             'notes' => 'nullable|string',
@@ -266,7 +329,7 @@ class StudentController extends Controller
         $student->update([
             'student_number' => $data['student_number'],
             'national_sn' => $data['national_sn'],
-            'major' => $data['major'],
+            'major_id' => $data['major_id'],
             'class' => $data['class'],
             'batch' => $data['batch'],
             'notes' => $data['notes'] ?? null,
@@ -277,12 +340,16 @@ class StudentController extends Controller
             ? 'Profile updated.'
             : 'Student updated.';
 
-        return redirect('/students')->with('status', $message);
+        return redirect($this->schoolRoute('students'))->with('status', $message);
     }
 
-    public function destroy(Request $request, $id)
+    public function destroy(Request $request, $school, $id)
     {
-        $student = Student::findOrFail($id);
+        $studentQuery = Student::with('user')->where('id', $id);
+        if ($schoolId = $this->currentSchoolId()) {
+            $studentQuery->where('school_id', $schoolId);
+        }
+        $student = $studentQuery->firstOrFail();
         if (session('role') === 'student' && $student->user_id !== session('user_id')) {
             abort(401);
         }
@@ -292,9 +359,10 @@ class StudentController extends Controller
         if (session('user_id') === $student->user_id) {
             $request->session()->invalidate();
             $request->session()->regenerateToken();
+
             return redirect('/login')->with('status', 'Your account has been deleted. You have been logged out.');
         }
 
-        return redirect('/students')->with('status', 'Student deleted.');
+        return redirect($this->schoolRoute('students'))->with('status', 'Student deleted.');
     }
 }

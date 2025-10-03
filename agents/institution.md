@@ -1,165 +1,72 @@
 # agents/institution.md
 
-CRUD Institution is used to perform operations on the **institution** table, **institution_contact**, and **institution_quotas**.
-
-> Before reading this document, make sure you have already read **AGENTS.md** to understand the context.
+Institutions represent partner companies plus their contact and quota metadata. The module spans three tables: `app.institutions`, `app.institution_contacts`, and `app.institution_quotas`. Controller: `App\Http\Controllers\InstitutionController`.
 
 ---
 
 ## Access Rights
-* **Create**: Only the student role cannot do this.
-* **Read**: Only students and the students themselves can view their own internship institution data, provided that the students have the application data; Roles above Student can perform full Read operations.
-* **Update**: Only the student role cannot do this.
-* **Delete**: Only the student role cannot do this.
+- **Developers / Admins / Supervisors**: full CRUD inside a realm.
+- **Students**: may list/read institutions that have hosted their applications or internships; all other operations are blocked (HTTP 401/403).
+- **Unauthenticated**: blocked by middleware.
 
 ---
 
-## List – `/institutions/`
-
-1. Page title: **Institutions**.  
-
-2. **Button filter**
-   * This button only appears when applying filters.
-   * The number of buttons corresponds to how many filters are applied.
-   * Button format: “{filter name}: {filter value}”
-
-3. **Search Input**  
-   * Search records based on all columns displayed in the table (no 10-record limit).  
-   * Search executes only after the user submits the form via the **Search** button or pressing Enter.  
-   * Changing the input alone does not trigger a search.
-
-3. **Filter** (sidebar opens from the right after clicking the filter button):  
-   * Title: **Filter Inbstitutions**  
-   * **X** button to close the sidebar  
-   * Inputs:  
-     * Name (text)
-     * Address (textArea)
-     * City (Dropdown) (Tom Select) 
-     * Province (Dropdown) (Tom Select)
-     * Website (Text)
-     * Industry (Dropdown) (Tom Select)
-     * Have Notes? (radio: True / False / Any)  
-     * Have Photo? (radio: True / False / Any)  
-     * Contact Name (text)
-     * Contact E-Mail (email)  
-     * Contact Phone (number)  
-     * Contact Position (text) 
-     * Contact Is Primary? (radio: True / False / Any)
-     * Period Year (date) (Year only)  
-     * Period Term (number)  
-     * Quota (number)  
-     * Quota Used (number)  
-   * **Reset** button to clear filters  
-   * **Apply** button to apply filters  
-   * Note: Filters can be combined for more specific search results.  
-
-4. **Table** with columns: Name, City, Province, Industry, Contact Name, Contact E-Mail, Contact Phone, Contact Position, Period Year, Period Term, Quota, Quota Used.
-
-Notes: Anticipate if the table width exceeds the screen width due to its content. By adding a horizontal scroll bar below the table if it exceeds the screen width. Don't force the table to be long and wide explicitly, but adjust it to the content.
-
-5. Display **10 records per page**, with **Next** and **Back** navigation.  
-
-6. Display the total number of Institutions.  
-
-7. Display page information in the format: `Page X out of N` (X = current page, N = total pages).  
+## List — `/{school_code}/institutions`
+- Search box (`q`) scans Name, City, Province, Industry, Contact fields.
+- Off-canvas filter includes: Name, Address, City, Province, Website, Industry, Contact (name/email/phone/position), Has Notes, Has Photo, Contact Primary (`true/false`), Period Year, Period Term, Quota, Quota Used.
+- Sort query (`sort=column:direction`) covers displayed columns plus `created_at` and `updated_at`.
+- Table columns mirror the view fields: Name, City, Province, Industry, Contact Name, Contact Email, Contact Phone, Contact Position, Period Year, Period Term, Quota, Used, Actions.
+- Pagination: 10 rows per page, total count, `Page X of N` summary.
+- **Create Institution** button hidden from students.
 
 ---
 
-## Create – `/institutions/create/`
-
-1. Page title: **Create Institution**.  
-
-2. Inputs:  
-     * Name (text)
-     * Address (text)
-     * City (Dropdown) (Tom Select) 
-     * Province (Dropdown) (Tom Select)
-     * Website (Text)
-     * Industry (Dropdown) (Tom Select)
-     * Notes (TextArea)  
-     * Photo (text)  
-     * Contact Name (text)
-     * Contact E-Mail (email)  
-     * Contact Phone (number)  
-     * Contact Position (text) 
-     * Contact Is Primary? (radio: True / False / Any)
-     * Period (Dropdown) (Tom Select) (format: "{year}: {term}") with a **Create new period** button beside it. Clicking the button hides the dropdown and reveals the inputs below.
-     * New Period Year (number) (Displayed only after pressing **Create new period**)
-     * New Period Term (number) (Displayed only after pressing **Create new period**)
-     * Quota (number)
-
-3. Notes:  
-   * ID is not an input field.  
-   * Institution_ID is not an input field.
-   * If the Year + Term Period combination does not yet exist in the Period table → create a new record, then link with its ID. If it already exists → just link to the existing ID.  
-   * Used is assigned automatically.  
-
-4. **Cancel** button to go back.  
-
-5. **Save** button to store the new data.  
+## Create — `/{school_code}/institutions/create`
+- Inputs:
+  - Name (text, required)
+  - Photo URL (optional)
+  - Address (required)
+  - City / Province (Tom Select backed by `resources/data/cities.json` & `provinces.json`; custom values allowed)
+  - Website (optional URL)
+  - Industry For (Tom Select listing active `school_majors`)
+  - Notes (optional)
+  - Primary Contact block: Name (required), Email (optional), Phone (optional), Position (optional), `Is Primary?` checkbox.
+  - Quota section: select existing Period (`{year}: {term}` drop-down) or create a new period inline (Year + Term fields appear after clicking **Create new period**), Quota (integer ≥ 0).
+- Cancel returns to list; Save redirects with success flash.
 
 ---
 
-## Read – `/institutions/[id]/read/`
+## Read — `/{school_code}/institutions/{id}/read`
+- Shows all columns provided by `institution_details_view`, including photo, contact, and the latest quota snapshot.
+- Students can open a record only if they have an application/internship at that institution; otherwise a 401 is thrown.
 
-Institution details are displayed as:  
-* Photo: {value}  
-* Name: {value}  
-* Address: {value}  
-* City: {value}  
-* Province: {value}
-* Website: {value}  
-* Industry: {value}  
-* Notes: {value}  
-* Contact Name: {value}  
-* Contact E-Mail: {value}  
-* Contact Phone: {value}
-* Contact Position: {value}
-* Contact Is Primary? {value}
-* Period Year {value}
-* Period Term {value}  
-* Quota {value}
-* Used {value}
 ---
 
-## Update – `/institutions/[id]/update/`
-
-1. Page title: **Update Institution**.  
-
-2. Inputs:  
-     * Name (text) (Disabled)
-     * Address (text)
-     * City (Dropdown) (Tom Select) 
-     * Province (Dropdown) (Tom Select)
-     * Website (Text)
-     * Industry (Dropdown) (Tom Select)
-     * Notes (TextArea)  
-     * Photo (text)  
-     * Contact Name (text)
-     * Contact E-Mail (email)  
-     * Contact Phone (number)  
-     * Contact Position (text) 
-     * Contact Is Primary? (radio: True / False / Any)
-     * Period (Dropdown) (Tom Select) (format: "{year}: {term}") with a **Create new period** button beside it. Clicking the button hides the dropdown and reveals the inputs below.
-     * New Period Year (number) (Displayed only after pressing **Create new period**)
-     * New Period Term (number) (Displayed only after pressing **Create new period**)
-     * Quota (number)
-
-3. Notes:
-   * All inputs have default values from the database, except Password.  
-   * ID is not an input field.  
-   * Institution_ID is not an input field.
-   * If the Year + Term Period combination does not yet exist in the Period table → create a new record, then link with its ID. If it already exists → just link to the existing ID.
-   * Used is assigned automatically.  
-
-4. **Cancel** button to go back.  
-
-5. **Save** button to store the changes.  
+## Update — `/{school_code}/institutions/{id}/update`
+- Name is immutable (disabled input); other fields follow the Create form with existing values prefilled.
+- Period selector again supports “create new” mode; quota updates apply to the selected period (creating the `(institution, period)` row if missing).
+- Primary contact section updates or creates the top-priority contact (`is_primary` highest wins).
+- Save returns to index with confirmation.
 
 ---
 
 ## Delete
-
-Delete records using the **Delete** button in the table at the `/institutions/` endpoint.  
+- Delete button on list/detail removes the institution and cascades to contacts/quotas through FK constraints. Guarded by 403 for students.
 
 ---
+
+## Validation Summary
+- Name: required, unique per school (`uq_institutions_school_name`), max 150.
+- City/Province: required strings (controller enforces presence even though selects allow custom strings).
+- Industry: required, must reference an active `school_majors` row (`industry_for`).
+- Contact Name is required; email/phone optional (email limited to 255). The first contact is stored in `app.institution_contacts` with cascade delete.
+- Period selection: either a valid existing `period_id` for the school or `create_new` with Year (2000–2100) and Term (1–4). Quota must be ≥ 0.
+- Phone, website, notes, and photo are optional text fields.
+
+---
+
+## Data Source Notes
+- Tables: `app.institutions`, `app.institution_contacts`, `app.institution_quotas`, `app.periods`.
+- View: `institution_details_view` joins the latest quota (`DISTINCT ON` by institution) and primary contact for read/list operations.
+- Triggers: `app.validate_quota_not_over()` prevents quota underflow; `app.set_updated_at()` maintains timestamps.
+- City/Province options are static JSON lists; keep them updated when geography requirements change.

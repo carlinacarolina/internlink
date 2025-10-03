@@ -1,71 +1,56 @@
 # AGENTS.md
 
-This document serves as the basic key for Agents to understand what I, as the user, expect from the application being developed. By reading this file, every action you take is expected to be more relevant, accurate, and context-appropriate.
+This document is the quick-reference guide for every InternLink agent. Read it before touching any feature so changes stay aligned with the product goals and realm rules.
 
-I repeat: **“This document is not an instruction manual, but a reference for relevance. Instructions are only given through prompts.”**
+> This is a relevance guide, not a step-by-step manual. Actual instructions come from the active prompt.
 
-**InternLink** is an application designed to help teachers manage their students’ internship activities in industry. It is intended for schools that require internships as part of the graduation requirements.
+InternLink helps schools coordinate industry internships. The entire back office is driven by AI agents; keep the docs in this folder current whenever behaviour changes.
 
-The InternLink application fully relies on AI Agents. You have full control, but:
+## Core Principles
+- Do not invent features or flows that are not present in the prompt or supporting agent docs.
+- Respect the school realm system. Non-developer roles operate inside `/{school_code}/…`. Developers can access `/developers`, `/schools`, and may jump into any realm by code.
+- Use `schoolRoute()` helpers whenever you build links or redirects inside a realm-aware view.
 
-* Do not add anything that is not requested in the prompt or in specific AGENTS files.
-* Do not be overly “initiative” beyond the given instructions.
+## Feature Map
 
----
+### Foundation
+- **Register** (`/signup`) – multi-step onboarding for students and supervisors. Requires the target school code.
+- **Login** (`/login`) – session authentication. Non-developers land directly in their school realm; developers stay global until they choose a realm.
+- **Logout** (`/logout`) – POST only.
+- **Security** – password rotation and global hardening guidelines (see `agents/security.md`).
 
-### Features (grouped into three categories):
+### Users
+- **Developers** (`/developers`) – profile self-service only.
+- **Schools** (`/schools`) – developer-only CRUD for school records and realm entry.
+- **Admins** (`/{school_code}/admins`) – managed by developers, admins may only maintain their own account.
+- **Supervisors** (`/{school_code}/supervisors`) – realm-scoped CRUD.
+- **Students** (`/{school_code}/students`) – realm-scoped CRUD.
 
-**Foundation**
+### Utilities
+- **Institutions** (`/{school_code}/institutions`) – companies, contacts, quotas.
+- **Applications** (`/{school_code}/applications`) – student applications, PDF exports, status management.
+- **Internships** (`/{school_code}/internships`) – accepted placements derived from applications.
+- **Monitoring Logs** (`/{school_code}/monitorings`) – internship activity notes; supports bulk application across the same institution.
+- **Major Staff Contacts** (`/{school_code}/major-contacts`) – maps a school major to a supervisor point of contact.
+- **Meta Endpoints** (`/{school_code}/meta/*`) – JSON helpers for front-end selects (monitor types, supervisors). Keep signatures stable.
 
-1. Register
-2. Login
-3. Logout
-4. Security
+### Settings
+- **Profile** (`/{school_code}/settings/profile`) – per-role profile maintenance, using the same validation rules as the main CRUD modules.
+- **Security** (`/{school_code}/settings/security`) – password change form with old/new/confirm inputs.
+- **Environments** (`/{school_code}/settings/environments`) – admin/developer management for school majors (used by student/supervisor forms and staff assignments).
 
-**Users**
+## Reference Material
+- Database structure lives in `database/migrations/0001_01_01_000001_custom_tables.php` and supporting view definitions in `0001_01_01_000002_views.php`.
+- Every read-heavy page consumes a view (`*_details_view`, `v_monitoring_log_*`) for consistency and easier debugging.
+- Major-dependent logic (applications, monitoring, staff contacts) relies on `app.major_staff_assignments`—keep those docs synced when the flow changes.
 
-1. CRUD Developer
-2. CRUD Admin
-3. CRUD Supervisors
-4. CRUD Student
-   *Note: The order reflects the role hierarchy.*
+## UI & Front-End Expectations
+- Use Tom Select on dropdowns with dynamic data (students, institutions, majors, interns, etc.). Plain selects are acceptable only when the options are short and static.
+- Buttons, spacing, and typography should stay consistent across modules (reuse the existing component partials when possible).
+- Flash messages follow the existing Bootstrap styling; success feedback should always be provided after create/update/delete actions.
 
-**Utilities**
+## Security Notes
+- Follow `agents/security.md` before modifying authentication, sessions, or request handling.
+- All mutations require CSRF protection and explicit role checks. The route middleware stack (`auth.session`, `developer`, `*.self`, `school`) reflects those constraints—keep controller logic in sync.
 
-1. CRUD Application
-2. CRUD Internship
-3. CRUD Monitoring
-
----
-
-Check the files in the **migrations** folder to view the database structure.
-*Note: If something needs to be added, changed, or removed in the database structure or views, you may modify it—but always pay attention to and fix the impact of those changes on files that depend on the previous structure, and ensure transparency.*
-
-Check the files in the **Agents** folder for full details on each CRUD. This folder will contain:
-
-* Required inputs for Create (including Role conditions).
-* Required columns to display in View (including Role conditions).
-* Required inputs for Edit (including Role conditions).
-* Delete flow (may require Role).
-* Detailed access rights by Role.
-* Other supporting information.
-
----
-
-### Additional Dependencies:
-
-* **Tom Select**: Enables search in dropdown values for easier use.
-  *Note: Apply this to all dropdowns except when the values are predictable (hardcoded) and very few.*
-
----
-
-### Suggestions:
-
-* Learn to write and use reusable code. If it’s not feasible → leave it.
-* UI/UX must remain consistent in similar contexts. For example, the Save button in the Create page for both Student and Application must have the same color and border radius.
-* Use English throughout the project unless explicitly instructed to use another language.
-* When you plan to implement something, always look at other systems that have the same context. Perhaps those systems have already implemented it. That way, you can simply follow the format and UI. This will ensure greater consistency.
-* Every read process must use a view; it cannot be direct. For easy debug.
-
-### Danger:
-* When implementing something, always follow the security guidelines in file agents/security.md
+Keep this file and the specific agent docs up to date whenever features evolve. That prevents conflicting behaviours between code and documentation.

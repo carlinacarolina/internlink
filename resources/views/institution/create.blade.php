@@ -5,12 +5,12 @@
 @section('content')
 <h1>Create Institution</h1>
 @include('institution.form', [
-    'action' => '/institutions',
+    'action' => $schoolRoute('institutions'),
     'method' => 'POST',
     'institution' => null,
     'cities' => $cities,
     'provinces' => $provinces,
-    'industries' => $industries,
+    'schoolMajors' => $schoolMajors,
     'periods' => $periods,
 ])
 @endsection

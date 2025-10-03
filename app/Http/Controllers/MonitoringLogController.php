@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rule;
 
 class MonitoringLogController extends Controller
 {
@@ -20,10 +21,11 @@ class MonitoringLogController extends Controller
         return ['weekly', 'issue', 'final', 'other'];
     }
 
-    private function internshipOptions()
+    private function internshipOptions(int $schoolId)
     {
         return DB::table('internship_details_view')
             ->select('id', 'student_name', 'institution_name', 'institution_id')
+            ->where('school_id', $schoolId)
             ->orderBy('student_name')
             ->orderBy('institution_name')
             ->get()
@@ -43,10 +45,11 @@ class MonitoringLogController extends Controller
         return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1;
     }
 
-    private function monitoringExists(int $internshipId, string $logDate, string $type, ?int $excludeId = null): bool
+    private function monitoringExists(int $internshipId, string $logDate, string $type, int $schoolId, ?int $excludeId = null): bool
     {
         $query = MonitoringLog::query()
             ->where('internship_id', $internshipId)
+            ->where('school_id', $schoolId)
             ->whereDate('log_date', $logDate)
             ->where('type', $type);
 
@@ -62,6 +65,8 @@ class MonitoringLogController extends Controller
         $role = session('role');
         $studentId = $this->currentStudentId();
         $types = $this->typeOptions();
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
 
         $query = DB::table('v_monitoring_log_summary as ms')
             ->join('internship_details_view as iv', 'iv.id', '=', 'ms.internship_id')
@@ -75,7 +80,9 @@ class MonitoringLogController extends Controller
                 'iv.institution_name',
                 'iv.student_id',
                 'iv.institution_id'
-            );
+            )
+            ->where('ms.school_id', $schoolId)
+            ->where('iv.school_id', $schoolId);
 
         if ($role === 'student' && $studentId) {
             $query->where('iv.student_id', $studentId);
@@ -100,6 +107,8 @@ class MonitoringLogController extends Controller
 
         $students = DB::table('v_monitoring_log_summary as ms')
             ->join('internship_details_view as iv', 'iv.id', '=', 'ms.internship_id')
+            ->where('ms.school_id', $schoolId)
+            ->where('iv.school_id', $schoolId)
             ->when($role === 'student' && $studentId, fn ($q) => $q->where('iv.student_id', $studentId))
             ->select('iv.student_id', 'iv.student_name')
             ->whereNotNull('iv.student_id')
@@ -123,6 +132,8 @@ class MonitoringLogController extends Controller
 
         $institutions = DB::table('v_monitoring_log_summary as ms')
             ->join('internship_details_view as iv', 'iv.id', '=', 'ms.internship_id')
+            ->where('ms.school_id', $schoolId)
+            ->where('iv.school_id', $schoolId)
             ->when($role === 'student' && $studentId, fn ($q) => $q->where('iv.student_id', $studentId))
             ->select('iv.institution_id', 'iv.institution_name')
             ->whereNotNull('iv.institution_id')
@@ -221,9 +232,15 @@ class MonitoringLogController extends Controller
         ]);
     }
 
-    public function show($id)
+    public function show($school, $id)
     {
-        $log = DB::table('v_monitoring_log_detail')->where('monitoring_log_id', $id)->first();
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
+
+        $log = DB::table('v_monitoring_log_detail')
+            ->where('monitoring_log_id', $id)
+            ->where('school_id', $schoolId)
+            ->first();
         abort_if(!$log, 404);
 
         if (session('role') === 'student') {
@@ -240,7 +257,10 @@ class MonitoringLogController extends Controller
             abort(401);
         }
 
-        $internships = $this->internshipOptions();
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
+
+        $internships = $this->internshipOptions($schoolId);
         $types = $this->typeOptions();
 
         return view('monitoring.create', [
@@ -256,11 +276,21 @@ class MonitoringLogController extends Controller
         }
 
         $types = $this->typeOptions();
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
 
         $data = $request->validate([
-            'internship_id' => 'required|integer|exists:internships,id',
+            'internship_id' => [
+                'required',
+                'integer',
+                Rule::exists('internships', 'id')->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
             'additional_internship_ids' => 'array',
-            'additional_internship_ids.*' => 'integer|distinct|exists:internships,id',
+            'additional_internship_ids.*' => [
+                'integer',
+                'distinct',
+                Rule::exists('internships', 'id')->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
             'log_date' => 'required|date',
             'type' => 'required|in:' . implode(',', $types),
             'title' => 'nullable|string|max:150',
@@ -272,6 +302,7 @@ class MonitoringLogController extends Controller
         $baseInternship = DB::table('internship_details_view')
             ->select('id', 'institution_id')
             ->where('id', $baseInternshipId)
+            ->where('school_id', $schoolId)
             ->first();
 
         if (!$baseInternship) {
@@ -289,6 +320,7 @@ class MonitoringLogController extends Controller
         if ($additionalIds->isNotEmpty()) {
             $invalid = DB::table('internship_details_view')
                 ->whereIn('id', $additionalIds)
+                ->where('school_id', $schoolId)
                 ->where('institution_id', '!=', $baseInternship->institution_id)
                 ->exists();
             if ($invalid) {
@@ -306,19 +338,21 @@ class MonitoringLogController extends Controller
         if ($request->boolean('apply_to_all')) {
             $institutionInternships = DB::table('internship_details_view')
                 ->where('institution_id', $baseInternship->institution_id)
+                ->where('school_id', $schoolId)
                 ->pluck('id');
             $targetIds = $targetIds->merge($institutionInternships);
         }
 
         $targetIds = $targetIds->unique()->values();
 
-        DB::transaction(function () use ($targetIds, $baseInternshipId, $data, $title, $content) {
+        DB::transaction(function () use ($targetIds, $baseInternshipId, $data, $title, $content, $schoolId) {
             foreach ($targetIds as $internshipId) {
-                if ((int) $internshipId !== $baseInternshipId && $this->monitoringExists((int) $internshipId, $data['log_date'], $data['type'])) {
+                if ((int) $internshipId !== $baseInternshipId && $this->monitoringExists((int) $internshipId, $data['log_date'], $data['type'], $schoolId)) {
                     continue;
                 }
 
                 MonitoringLog::create([
+                    'school_id' => $schoolId,
                     'internship_id' => (int) $internshipId,
                     'log_date' => $data['log_date'],
                     'type' => $data['type'],
@@ -329,19 +363,25 @@ class MonitoringLogController extends Controller
             }
         });
 
-        return redirect('/monitorings');
+        return redirect($this->schoolRoute('monitorings'))->with('status', 'Monitoring log created.');
     }
 
-    public function edit($id)
+    public function edit($school, $id)
     {
         if (session('role') === 'student') {
             abort(401);
         }
 
-        $log = DB::table('v_monitoring_log_detail')->where('monitoring_log_id', $id)->first();
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
+
+        $log = DB::table('v_monitoring_log_detail')
+            ->where('monitoring_log_id', $id)
+            ->where('school_id', $schoolId)
+            ->first();
         abort_if(!$log, 404);
 
-        $internships = $this->internshipOptions();
+        $internships = $this->internshipOptions($schoolId);
         $types = $this->typeOptions();
 
         return view('monitoring.edit', [
@@ -351,19 +391,30 @@ class MonitoringLogController extends Controller
         ]);
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, $school, $id)
     {
         if (session('role') === 'student') {
             abort(401);
         }
 
-        $log = MonitoringLog::findOrFail($id);
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
+
+        $log = MonitoringLog::where('school_id', $schoolId)->findOrFail($id);
         $types = $this->typeOptions();
 
         $data = $request->validate([
-            'internship_id' => 'required|integer|exists:internships,id',
+            'internship_id' => [
+                'required',
+                'integer',
+                Rule::exists('internships', 'id')->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
             'additional_internship_ids' => 'array',
-            'additional_internship_ids.*' => 'integer|distinct|exists:internships,id',
+            'additional_internship_ids.*' => [
+                'integer',
+                'distinct',
+                Rule::exists('internships', 'id')->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
             'log_date' => 'required|date',
             'type' => 'required|in:' . implode(',', $types),
             'title' => 'nullable|string|max:150',
@@ -381,6 +432,7 @@ class MonitoringLogController extends Controller
         $baseInternship = DB::table('internship_details_view')
             ->select('id', 'institution_id')
             ->where('id', $baseInternshipId)
+            ->where('school_id', $schoolId)
             ->first();
 
         if (!$baseInternship) {
@@ -398,6 +450,7 @@ class MonitoringLogController extends Controller
         if ($additionalIds->isNotEmpty()) {
             $invalid = DB::table('internship_details_view')
                 ->whereIn('id', $additionalIds)
+                ->where('school_id', $schoolId)
                 ->where('institution_id', '!=', $baseInternship->institution_id)
                 ->exists();
             if ($invalid) {
@@ -410,7 +463,7 @@ class MonitoringLogController extends Controller
         $title = $data['title'] !== null && trim($data['title']) !== '' ? trim($data['title']) : null;
         $content = trim($data['content']);
 
-        DB::transaction(function () use ($log, $data, $title, $content, $request, $baseInternship, $additionalIds, $baseInternshipId) {
+        DB::transaction(function () use ($log, $data, $title, $content, $request, $baseInternship, $additionalIds, $baseInternshipId, $schoolId) {
             $log->update([
                 'log_date' => $data['log_date'],
                 'type' => $data['type'],
@@ -424,6 +477,7 @@ class MonitoringLogController extends Controller
                 $targetIds = $targetIds->merge(
                     DB::table('internship_details_view')
                         ->where('institution_id', $baseInternship->institution_id)
+                        ->where('school_id', $schoolId)
                         ->pluck('id')
                 );
             }
@@ -435,11 +489,12 @@ class MonitoringLogController extends Controller
                     continue;
                 }
 
-                if ($this->monitoringExists($internshipId, $data['log_date'], $data['type'])) {
+                if ($this->monitoringExists($internshipId, $data['log_date'], $data['type'], $schoolId)) {
                     continue;
                 }
 
                 MonitoringLog::create([
+                    'school_id' => $schoolId,
                     'internship_id' => $internshipId,
                     'log_date' => $data['log_date'],
                     'type' => $data['type'],
@@ -450,18 +505,21 @@ class MonitoringLogController extends Controller
             }
         });
 
-        return redirect('/monitorings');
+        return redirect($this->schoolRoute('monitorings'))->with('status', 'Monitoring log updated.');
     }
 
-    public function destroy($id)
+    public function destroy($school, $id)
     {
         if (session('role') === 'student') {
             abort(401);
         }
 
-        $log = MonitoringLog::findOrFail($id);
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
+
+        $log = MonitoringLog::where('school_id', $schoolId)->findOrFail($id);
         $log->delete();
 
-        return redirect('/monitorings');
+        return redirect($this->schoolRoute('monitorings'))->with('status', 'Monitoring log deleted.');
     }
 }

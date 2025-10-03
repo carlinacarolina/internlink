@@ -59,7 +59,7 @@
                 <div><span class="fw-semibold">City:</span> {{ $internship->institution_city ?? '—' }}</div>
                 <div><span class="fw-semibold">Province:</span> {{ $internship->institution_province ?? '—' }}</div>
                 <div><span class="fw-semibold">Website:</span> {{ $internship->institution_website ?? '—' }}</div>
-                <div><span class="fw-semibold">Industry:</span> {{ $internship->institution_industry ?? '—' }}</div>
+                <div><span class="fw-semibold">Industry For:</span> {{ $internship->institution_industry_for_name ?? '—' }}</div>
                 <div><span class="fw-semibold">Notes:</span> {{ $internship->institution_notes ?? '—' }}</div>
                 <div class="fw-semibold mt-2">Primary Contact</div>
                 <div><span class="fw-semibold">Name:</span> {{ $internship->institution_contact_name ?? '—' }}</div>
@@ -105,10 +105,10 @@
 </div>
 
 <div class="d-flex justify-content-end gap-2">
-    <a href="/internships" class="btn btn-outline-secondary">Back</a>
+    <a href="{{ $schoolRoute('internships') }}" class="btn btn-outline-secondary">Back</a>
     @if(!$isStudent)
-        <a href="/internships/{{ $internship->id }}/update" class="btn btn-warning">Update</a>
-        <form action="/internships/{{ $internship->id }}" method="POST" class="d-inline">
+        <a href="{{ $schoolRoute('internships/' . $internship->id . '/update') }}" class="btn btn-warning">Update</a>
+        <form action="{{ $schoolRoute('internships/' . $internship->id) }}" method="POST" class="d-inline">
             @csrf
             @method('DELETE')
             <button type="submit" class="btn btn-danger" onclick="return confirm('Delete this internship?');">Delete</button>

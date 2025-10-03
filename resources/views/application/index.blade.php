@@ -16,13 +16,16 @@
                 <input type="hidden" name="{{ $param }}" value="{{ $value }}">
             @endforeach
         </form>
+        <a href="{{ $schoolRoute('applications/print-all') }}" class="btn btn-outline-success" title="Print all applications with under review or draft status">
+            Print All
+        </a>
         <button class="btn btn-outline-secondary position-relative" type="button" data-bs-toggle="offcanvas" data-bs-target="#applicationFilter" aria-controls="applicationFilter">
             Filter
             @if(count($filters))
                 <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-primary">{{ count($filters) }}</span>
             @endif
         </button>
-        <a href="/applications/create" class="btn btn-primary">Create Application</a>
+        <a href="{{ $schoolRoute('applications/create') }}" class="btn btn-primary">Create Application</a>
     </div>
 </div>
 
@@ -49,6 +52,8 @@
                 <th scope="col">Term</th>
                 <th scope="col">Status Application</th>
                 <th scope="col">Student Access</th>
+                <th scope="col">Planned Start</th>
+                <th scope="col">Planned End</th>
                 <th scope="col">Submitted At</th>
                 <th scope="col">Actions</th>
             </tr>
@@ -63,11 +68,13 @@
                 <td>{{ $application->period_term }}</td>
                 <td>{{ ucwords(str_replace('_', ' ', $application->status)) }}</td>
                 <td>{{ $application->student_access ? 'True' : 'False' }}</td>
+                <td>{{ $application->planned_start_date ? \Illuminate\Support\Carbon::parse($application->planned_start_date)->format('Y-m-d') : '—' }}</td>
+                <td>{{ $application->planned_end_date ? \Illuminate\Support\Carbon::parse($application->planned_end_date)->format('Y-m-d') : '—' }}</td>
                 <td>{{ \Illuminate\Support\Carbon::parse($application->submitted_at)->format('Y-m-d') }}</td>
                 <td class="text-nowrap">
-                    <a href="/applications/{{ $application->id }}/read" class="btn btn-sm btn-outline-secondary">Read</a>
-                    <a href="/applications/{{ $application->id }}/update" class="btn btn-sm btn-warning">Update</a>
-                    <form action="/applications/{{ $application->id }}" method="POST" class="d-inline">
+                    <a href="{{ $schoolRoute('applications/' . $application->id . '/read') }}" class="btn btn-sm btn-outline-secondary">Read</a>
+                    <a href="{{ $schoolRoute('applications/' . $application->id . '/update') }}" class="btn btn-sm btn-warning">Update</a>
+                    <form action="{{ $schoolRoute('applications/' . $application->id) }}" method="POST" class="d-inline">
                         @csrf
                         @method('DELETE')
                         <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this application?');">Delete</button>
@@ -76,7 +83,7 @@
             </tr>
         @empty
             <tr>
-                <td colspan="9" class="text-center">No applications found.</td>
+                <td colspan="11" class="text-center">No applications found.</td>
             </tr>
         @endforelse
         </tbody>
@@ -224,7 +231,7 @@
     });
 
     resetButton.addEventListener('click', () => {
-        window.location = '{{ url('/applications') }}';
+        window.location = '{{ $schoolRoute('applications') }}';
     });
 })();
 </script>

@@ -429,6 +429,7 @@ a:focus {
     box-shadow: var(--app-shadow);
     padding: 2rem;
     min-height: calc(100vh - 6rem);
+    min-width: 0;
 }
 
 .app-content h1,
@@ -521,6 +522,8 @@ a:focus {
     box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
     padding: 1rem;
     margin-bottom: 1.5rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .table {

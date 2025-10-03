@@ -22,7 +22,7 @@
                     </div>
                     <div>
                         <div class="fw-semibold">Student Name</div>
-                        <a href="/students/{{ $application->student_id }}/read" class="text-decoration-none">{{ $application->student_name }}</a>
+                        <a href="{{ $schoolRoute('students/' . $application->student_id . '/read') }}" class="text-decoration-none">{{ $application->student_name }}</a>
                     </div>
                 </div>
                 <div><span class="fw-semibold">Email:</span> {{ $application->student_email ?? '—' }}</div>
@@ -51,14 +51,14 @@
                     </div>
                     <div>
                         <div class="fw-semibold">Institution Name</div>
-                        <a href="/institutions/{{ $application->institution_id }}/read" class="text-decoration-none">{{ $application->institution_name }}</a>
+                        <a href="{{ $schoolRoute('institutions/' . $application->institution_id . '/read') }}" class="text-decoration-none">{{ $application->institution_name }}</a>
                     </div>
                 </div>
                 <div><span class="fw-semibold">Address:</span> {{ $application->institution_address ?? '—' }}</div>
                 <div><span class="fw-semibold">City:</span> {{ $application->institution_city ?? '—' }}</div>
                 <div><span class="fw-semibold">Province:</span> {{ $application->institution_province ?? '—' }}</div>
                 <div><span class="fw-semibold">Website:</span> {{ $application->institution_website ?? '—' }}</div>
-                <div><span class="fw-semibold">Industry:</span> {{ $application->institution_industry ?? '—' }}</div>
+                <div><span class="fw-semibold">Industry For:</span> {{ $application->institution_industry_for_name ?? '—' }}</div>
                 <div><span class="fw-semibold">Notes:</span> {{ $application->institution_notes ?? '—' }}</div>
                 <div class="fw-semibold mt-2">Primary Contact</div>
                 <div><span class="fw-semibold">Name:</span> {{ $application->institution_contact_name ?? '—' }}</div>
@@ -74,6 +74,20 @@
             </div>
         </div>
     </div>
+
+    <div class="col-lg-6">
+        <div class="card h-100">
+            <div class="card-header fw-semibold">Staff Contact</div>
+            <div class="card-body d-flex flex-column gap-2">
+                <div><span class="fw-semibold">Major:</span> {{ $application->student_major ?? '—' }}</div>
+                <div><span class="fw-semibold">Name:</span> {{ $application->staff_name ?? '—' }}</div>
+                <div><span class="fw-semibold">Email:</span> {{ $application->staff_email ?? '—' }}</div>
+                <div><span class="fw-semibold">Phone:</span> {{ $application->staff_phone ?? '—' }}</div>
+                <div><span class="fw-semibold">Supervisor Number:</span> {{ $application->staff_supervisor_number ?? '—' }}</div>
+                <div><span class="fw-semibold">Department:</span> {{ $application->staff_department ?? '—' }}</div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="card mb-4">
@@ -84,12 +98,15 @@
         <div><span class="fw-semibold">Status Application:</span> {{ ucwords(str_replace('_', ' ', $application->status)) }}</div>
         <div><span class="fw-semibold">Student Access:</span> {{ $application->student_access ? 'True' : 'False' }}</div>
         <div><span class="fw-semibold">Submitted At:</span> {{ \Illuminate\Support\Carbon::parse($application->submitted_at)->format('Y-m-d') }}</div>
+        <div><span class="fw-semibold">Planned Start Date:</span> {{ $application->planned_start_date ?? '—' }}</div>
+        <div><span class="fw-semibold">Planned End Date:</span> {{ $application->planned_end_date ?? '—' }}</div>
         <div><span class="fw-semibold">Notes:</span> {{ $application->application_notes ?? '—' }}</div>
     </div>
 </div>
 
 <div class="d-flex justify-content-end gap-2">
-    <a href="/applications" class="btn btn-outline-secondary">Back</a>
-    <a href="/applications/{{ $application->id }}/update" class="btn btn-warning">Update</a>
+    <a href="{{ $schoolRoute('applications') }}" class="btn btn-outline-secondary">Back</a>
+    <a href="{{ $schoolRoute('applications/' . $application->id . '/pdf/print') }}" class="btn btn-primary">Download PDF</a>
+    <a href="{{ $schoolRoute('applications/' . $application->id . '/update') }}" class="btn btn-warning">Update</a>
 </div>
 @endsection

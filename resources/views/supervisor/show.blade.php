@@ -43,5 +43,5 @@
         </div>
     </div>
 </div>
-<a href="/supervisors" class="btn btn-secondary">Back</a>
+<a href="{{ $schoolRoute('supervisors') }}" class="btn btn-secondary">Back</a>
 @endsection

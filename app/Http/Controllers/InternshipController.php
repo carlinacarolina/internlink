@@ -6,6 +6,7 @@ use App\Models\Internship;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rule;
 
 class InternshipController extends Controller
 {
@@ -22,9 +23,12 @@ class InternshipController extends Controller
     {
         $role = session('role');
         $studentId = $this->currentStudentId();
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
 
         $query = DB::table('internship_details_view')
             ->select('id', 'student_id', 'student_name', 'institution_id', 'institution_name', 'period_id', 'period_year', 'period_term', 'start_date', 'end_date', 'status');
+        $query->where('school_id', $schoolId);
 
         if ($role === 'student' && $studentId) {
             $query->where('student_id', $studentId);
@@ -43,6 +47,7 @@ class InternshipController extends Controller
         ];
 
         $students = DB::table('internship_details_view')
+            ->where('school_id', $schoolId)
             ->when($role === 'student' && $studentId, fn($q) => $q->where('student_id', $studentId))
             ->select('student_id', 'student_name')
             ->groupBy('student_id', 'student_name')
@@ -56,6 +61,7 @@ class InternshipController extends Controller
         $studentLabels = $students->pluck('label', 'id');
 
         $institutions = DB::table('internship_details_view')
+            ->where('school_id', $schoolId)
             ->when($role === 'student' && $studentId, fn($q) => $q->where('student_id', $studentId))
             ->select('institution_id', 'institution_name')
             ->groupBy('institution_id', 'institution_name')
@@ -69,6 +75,7 @@ class InternshipController extends Controller
         $institutionLabels = $institutions->pluck('label', 'id');
 
         $periods = DB::table('internship_details_view')
+            ->where('school_id', $schoolId)
             ->when($role === 'student' && $studentId, fn($q) => $q->where('student_id', $studentId))
             ->select('period_id', 'period_year', 'period_term')
             ->groupBy('period_id', 'period_year', 'period_term')
@@ -200,8 +207,11 @@ class InternshipController extends Controller
         ]);
     }
 
-    public function show($id)
+    public function show($school, $id)
     {
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
+
         $internship = DB::table('internship_details_view as it')
             ->join('application_details_view as app', 'app.id', '=', 'it.application_id')
             ->select([
@@ -248,6 +258,8 @@ class InternshipController extends Controller
                 'it.status as internship_status',
             ])
             ->where('it.id', $id)
+            ->where('it.school_id', $schoolId)
+            ->where('app.school_id', $schoolId)
             ->first();
 
         abort_if(!$internship, 404);
@@ -264,13 +276,17 @@ class InternshipController extends Controller
         if (session('role') === 'student') {
             abort(401);
         }
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
         $applications = DB::table('application_details_view')
             ->select('id', 'student_name', 'institution_name', 'institution_id')
             ->where('status', 'accepted')
+            ->where('school_id', $schoolId)
             ->whereNotExists(function ($q) {
                 $q->select(DB::raw(1))
                     ->from('internships')
-                    ->whereColumn('internships.application_id', 'application_details_view.id');
+                    ->whereColumn('internships.application_id', 'application_details_view.id')
+                    ->whereColumn('internships.school_id', 'application_details_view.school_id');
             })
             ->orderBy('student_name')
             ->orderBy('institution_name')
@@ -292,17 +308,24 @@ class InternshipController extends Controller
         if (session('role') === 'student') {
             abort(401);
         }
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 400, 'School context required.');
         $statuses = $this->statusOptions();
         $data = $request->validate([
             'application_ids' => 'required|array|min:1',
-            'application_ids.*' => 'integer|distinct|exists:applications,id',
+            'application_ids.*' => [
+                'integer',
+                'distinct',
+                Rule::exists('applications', 'id')->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
             'start_date' => 'required|date',
             'end_date' => 'required|date|after_or_equal:start_date',
             'status' => 'required|in:' . implode(',', $statuses),
         ]);
 
         $apps = DB::table('applications')
-            ->select('id', 'student_id', 'institution_id', 'period_id', 'status')
+            ->select('id', 'student_id', 'institution_id', 'period_id', 'status', 'school_id')
+            ->where('school_id', $schoolId)
             ->whereIn('id', $data['application_ids'])
             ->get()->keyBy('id');
 
@@ -312,10 +335,12 @@ class InternshipController extends Controller
 
         $existingApps = DB::table('internships')
             ->whereIn('application_id', $data['application_ids'])
+            ->where('school_id', $schoolId)
             ->pluck('application_id')
             ->all();
         $existingStudents = DB::table('internships')
             ->whereIn('student_id', $apps->pluck('student_id'))
+            ->where('school_id', $schoolId)
             ->pluck('student_id')
             ->all();
 
@@ -355,6 +380,7 @@ class InternshipController extends Controller
                     throw ValidationException::withMessages(['application_ids' => 'Applications must be from the same institution']);
                 }
                 Internship::create([
+                    'school_id' => $schoolId,
                     'application_id' => $app->id,
                     'student_id' => $app->student_id,
                     'institution_id' => $app->institution_id,
@@ -366,19 +392,26 @@ class InternshipController extends Controller
             }
         });
 
-        return redirect('/internships');
+        return redirect($this->schoolRoute('internships'))->with('status', 'Internship created.');
     }
 
-    public function edit($id)
+    public function edit($school, $id)
     {
         if (session('role') === 'student') {
             abort(401);
         }
-        $internship = DB::table('internship_details_view')->where('id', $id)->first();
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
+
+        $internship = DB::table('internship_details_view')
+            ->where('id', $id)
+            ->where('school_id', $schoolId)
+            ->first();
         abort_if(!$internship, 404);
         $applications = DB::table('internship_details_view')
             ->select('application_id as id', 'student_name', 'institution_name', 'institution_id')
             ->where('institution_id', $internship->institution_id)
+            ->where('school_id', $schoolId)
             ->orderBy('student_name')
             ->orderBy('institution_name')
             ->get()
@@ -395,16 +428,23 @@ class InternshipController extends Controller
         return view('internship.edit', compact('internship', 'applications', 'statuses'));
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, $school, $id)
     {
         if (session('role') === 'student') {
             abort(401);
         }
-        $internship = Internship::findOrFail($id);
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
+
+        $internship = Internship::where('school_id', $schoolId)->findOrFail($id);
         $statuses = $this->statusOptions();
         $data = $request->validate([
             'application_ids' => 'required|array|min:1',
-            'application_ids.*' => 'integer|distinct|exists:applications,id',
+            'application_ids.*' => [
+                'integer',
+                'distinct',
+                Rule::exists('applications', 'id')->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
             'start_date' => 'required|date',
             'end_date' => 'required|date|after_or_equal:start_date',
             'status' => 'required|in:' . implode(',', $statuses),
@@ -415,7 +455,8 @@ class InternshipController extends Controller
         }
 
         $apps = DB::table('applications')
-            ->select('id', 'student_id', 'institution_id', 'period_id', 'status')
+            ->select('id', 'student_id', 'institution_id', 'period_id', 'status', 'school_id')
+            ->where('school_id', $schoolId)
             ->whereIn('id', $data['application_ids'])
             ->get()->keyBy('id');
 
@@ -426,6 +467,7 @@ class InternshipController extends Controller
         $existingStudents = DB::table('internships')
             ->whereIn('student_id', $apps->pluck('student_id'))
             ->whereNotIn('application_id', $data['application_ids'])
+            ->where('school_id', $schoolId)
             ->pluck('student_id')
             ->all();
 
@@ -454,7 +496,10 @@ class InternshipController extends Controller
 
         $first = $apps[$internship->application_id];
 
-        $internships = Internship::whereIn('application_id', $data['application_ids'])->get()->keyBy('application_id');
+        $internships = Internship::where('school_id', $schoolId)
+            ->whereIn('application_id', $data['application_ids'])
+            ->get()
+            ->keyBy('application_id');
         if ($internships->count() !== count($data['application_ids'])) {
             return back()->withErrors(['application_ids' => 'Internship not found for selected applications'])->withInput();
         }
@@ -473,17 +518,19 @@ class InternshipController extends Controller
             }
         });
 
-        return redirect('/internships');
+        return redirect($this->schoolRoute('internships'))->with('status', 'Internship updated.');
     }
 
-    public function destroy($id)
+    public function destroy($school, $id)
     {
         if (session('role') === 'student') {
             abort(401);
         }
-        $internship = Internship::findOrFail($id);
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
+        $internship = Internship::where('school_id', $schoolId)->findOrFail($id);
         $internship->delete();
-        return redirect('/internships');
+        return redirect($this->schoolRoute('internships'))->with('status', 'Internship deleted.');
     }
 
     private function isValidDate(?string $value): bool

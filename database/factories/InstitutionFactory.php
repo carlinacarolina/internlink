@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Institution;
+use App\Models\School;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -19,12 +20,13 @@ class InstitutionFactory extends Factory
     public function definition(): array
     {
         return [
+            'school_id' => School::factory(),
             'name' => $this->faker->company(),
             'address' => $this->faker->streetAddress(),
             'city' => $this->faker->city(),
             'province' => $this->faker->state(),
             'website' => $this->faker->url(),
-            'industry' => $this->faker->randomElement(['Technology','Manufacturing','Healthcare','Finance','Education']),
+            'industry_for' => null, // Will be set by seeder
             'notes' => null,
             'photo' => null,
         ];

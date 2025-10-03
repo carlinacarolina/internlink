@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\SchoolMajor;
 use App\Models\Supervisor;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 
 class SupervisorController extends Controller
 {
@@ -17,6 +19,9 @@ class SupervisorController extends Controller
 
     public function index(Request $request)
     {
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
+
         $query = DB::table('supervisor_details_view as sv')
             ->select(
                 'sv.id',
@@ -27,10 +32,13 @@ class SupervisorController extends Controller
                 'sv.email_verified_at',
                 'sv.notes',
                 'sv.photo'
-            );
+            )
+            ->where('sv.school_id', $schoolId);
         if (session('role') === 'student') {
             $query->join('monitoring_logs as ml', 'sv.id', '=', 'ml.supervisor_id')
                 ->join('internships as it', 'ml.internship_id', '=', 'it.id')
+                ->where('ml.school_id', $schoolId)
+                ->where('it.school_id', $schoolId)
                 ->where('it.student_id', $this->currentStudentId())
                 ->distinct();
         } elseif (session('role') === 'supervisor') {
@@ -159,14 +167,22 @@ class SupervisorController extends Controller
         ]);
     }
 
-    public function show($id)
+    public function show($school, $id)
     {
-        $supervisor = DB::table('supervisor_details_view')->where('id', $id)->first();
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
+
+        $supervisor = DB::table('supervisor_details_view')
+            ->where('id', $id)
+            ->where('school_id', $schoolId)
+            ->first();
         abort_if(!$supervisor, 404);
         if (session('role') === 'student') {
             $related = DB::table('monitoring_logs as ml')
                 ->join('internships as it', 'ml.internship_id', '=', 'it.id')
+                ->where('ml.school_id', $schoolId)
                 ->where('ml.supervisor_id', $id)
+                ->where('it.school_id', $schoolId)
                 ->where('it.student_id', $this->currentStudentId())
                 ->exists();
             abort_unless($related, 401);
@@ -181,7 +197,15 @@ class SupervisorController extends Controller
         if (!in_array(session('role'), ['admin', 'developer'])) {
             abort(401);
         }
-        return view('supervisor.create');
+        
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404);
+        
+        $majors = SchoolMajor::forSchool($schoolId)->active()->orderBy('name')->get();
+        
+        return view('supervisor.create', [
+            'majors' => $majors,
+        ]);
     }
 
     public function store(Request $request)
@@ -189,13 +213,26 @@ class SupervisorController extends Controller
         if (!in_array(session('role'), ['admin', 'developer'])) {
             abort(401);
         }
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 400, 'School context required.');
+
         $data = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255|unique:users,email',
+            'email' => [
+                'required',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
             'phone' => 'nullable|string|max:20',
             'password' => 'required|string|min:8',
-            'supervisor_number' => 'required|string|max:50|unique:supervisors,supervisor_number',
-            'department' => 'required|string|max:255',
+            'supervisor_number' => [
+                'required',
+                'string',
+                'max:50',
+                Rule::unique('supervisors', 'supervisor_number')->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
+            'department_id' => 'required|exists:school_majors,id',
             'notes' => 'nullable|string|max:1000',
             'photo' => 'nullable|string|max:255',
         ]);
@@ -206,20 +243,22 @@ class SupervisorController extends Controller
             'phone' => $data['phone'] ?? null,
             'password' => Hash::make($data['password']),
             'role' => 'supervisor',
+            'school_id' => $schoolId,
         ]);
 
         Supervisor::create([
             'user_id' => $user->id,
+            'school_id' => $schoolId,
             'supervisor_number' => $data['supervisor_number'],
-            'department' => $data['department'],
+            'department_id' => $data['department_id'],
             'notes' => $data['notes'] ?? null,
             'photo' => $data['photo'] ?? null,
         ]);
 
-        return redirect('/supervisors');
+        return redirect($this->schoolRoute('supervisors'))->with('status', 'Supervisor created.');
     }
 
-    public function edit($id)
+    public function edit($school, $id)
     {
         if (session('role') === 'student') {
             abort(401);
@@ -227,12 +266,24 @@ class SupervisorController extends Controller
         if (session('role') === 'supervisor' && $id != $this->currentSupervisorId()) {
             abort(401);
         }
-        $supervisor = DB::table('supervisor_details_view')->where('id', $id)->first();
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
+
+        $supervisor = DB::table('supervisor_details_view')
+            ->where('id', $id)
+            ->where('school_id', $schoolId)
+            ->first();
         abort_if(!$supervisor, 404);
-        return view('supervisor.edit', compact('supervisor'));
+        
+        $majors = SchoolMajor::forSchool($schoolId)->active()->orderBy('name')->get();
+        
+        return view('supervisor.edit', [
+            'supervisor' => $supervisor,
+            'majors' => $majors,
+        ]);
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, $school, $id)
     {
         if (session('role') === 'student') {
             abort(401);
@@ -240,16 +291,33 @@ class SupervisorController extends Controller
         if (session('role') === 'supervisor' && $id != $this->currentSupervisorId()) {
             abort(401);
         }
-        $supervisor = Supervisor::findOrFail($id);
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
+
+        $supervisor = Supervisor::where('school_id', $schoolId)->findOrFail($id);
         $user = $supervisor->user;
 
         $data = $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|email|max:255|unique:users,email,' . $user->id,
+            'email' => [
+                'required',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')
+                    ->ignore($user->id)
+                    ->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
             'phone' => 'nullable|string|max:20',
             'password' => 'nullable|string|min:8',
-            'supervisor_number' => 'required|string|max:50|unique:supervisors,supervisor_number,' . $supervisor->id,
-            'department' => 'required|string|max:255',
+            'supervisor_number' => [
+                'required',
+                'string',
+                'max:50',
+                Rule::unique('supervisors', 'supervisor_number')
+                    ->ignore($supervisor->id)
+                    ->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
+            'department_id' => 'required|exists:school_majors,id',
             'notes' => 'nullable|string|max:1000',
             'photo' => 'nullable|string|max:255',
         ]);
@@ -264,15 +332,15 @@ class SupervisorController extends Controller
 
         $supervisor->update([
             'supervisor_number' => $data['supervisor_number'],
-            'department' => $data['department'],
+            'department_id' => $data['department_id'],
             'notes' => $data['notes'] ?? null,
             'photo' => $data['photo'] ?? null,
         ]);
 
-        return redirect('/supervisors');
+        return redirect($this->schoolRoute('supervisors'))->with('status', 'Supervisor updated.');
     }
 
-    public function destroy($id)
+    public function destroy($school, $id)
     {
         if (session('role') === 'student') {
             abort(401);
@@ -280,8 +348,11 @@ class SupervisorController extends Controller
         if (session('role') === 'supervisor' && $id != $this->currentSupervisorId()) {
             abort(401);
         }
-        $supervisor = Supervisor::findOrFail($id);
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 404, 'School context missing.');
+
+        $supervisor = Supervisor::where('school_id', $schoolId)->findOrFail($id);
         $supervisor->user()->delete();
-        return redirect('/supervisors');
+        return redirect($this->schoolRoute('supervisors'))->with('status', 'Supervisor deleted.');
     }
 }

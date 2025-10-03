@@ -28,7 +28,7 @@
         @if($isStudent)
             <button class="btn btn-primary" disabled>Create Institution</button>
         @else
-            <a href="/institutions/create" class="btn btn-primary">Create Institution</a>
+            <a href="{{ $schoolRoute('institutions/create') }}" class="btn btn-primary">Create Institution</a>
         @endif
     </div>
 </div>
@@ -52,7 +52,7 @@
                 <th scope="col">Name</th>
                 <th scope="col">City</th>
                 <th scope="col">Province</th>
-                <th scope="col">Industry</th>
+                <th scope="col">Industry For</th>
                 <th scope="col">Contact Name</th>
                 <th scope="col">Contact E-Mail</th>
                 <th scope="col">Contact Phone</th>
@@ -70,7 +70,7 @@
                 <td>{{ $institution->name }}</td>
                 <td>{{ $institution->city }}</td>
                 <td>{{ $institution->province }}</td>
-                <td>{{ $institution->industry }}</td>
+                <td>{{ $institution->industry_for_name ?? '—' }}</td>
                 <td>{{ $institution->contact_name ?? '—' }}</td>
                 <td>{{ $institution->contact_email ?? '—' }}</td>
                 <td>{{ $institution->contact_phone ?? '—' }}</td>
@@ -80,10 +80,10 @@
                 <td>{{ $institution->quota ?? '—' }}</td>
                 <td>{{ $institution->used ?? '—' }}</td>
                 <td class="text-nowrap">
-                    <a href="/institutions/{{ $institution->id }}/read" class="btn btn-sm btn-outline-secondary">Read</a>
+                    <a href="{{ $schoolRoute('institutions/' . $institution->id . '/read') }}" class="btn btn-sm btn-outline-secondary">Read</a>
                     @if(!$isStudent)
-                        <a href="/institutions/{{ $institution->id }}/update" class="btn btn-sm btn-warning">Update</a>
-                        <form action="/institutions/{{ $institution->id }}" method="POST" class="d-inline">
+                        <a href="{{ $schoolRoute('institutions/' . $institution->id . '/update') }}" class="btn btn-sm btn-warning">Update</a>
+                        <form action="{{ $schoolRoute('institutions/' . $institution->id) }}" method="POST" class="d-inline">
                             @csrf
                             @method('DELETE')
                             <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Delete this institution?');">Delete</button>
@@ -162,15 +162,12 @@
                 <input type="text" class="form-control" id="filter-website" name="website" value="{{ request('website') }}">
             </div>
             <div>
-                <label class="form-label" for="filter-industry">Industry</label>
-                <select class="form-select tom-select" id="filter-industry" name="industry" data-tom-create="true">
-                    <option value="">Select industry</option>
-                    @foreach($industries as $industry)
-                        <option value="{{ $industry }}" @selected(request('industry') === $industry)>{{ $industry }}</option>
+                <label class="form-label" for="filter-industry-for-name">Industry For</label>
+                <select class="form-select tom-select" id="filter-industry-for-name" name="industry_for_name">
+                    <option value="">Select major</option>
+                    @foreach($schoolMajors as $major)
+                        <option value="{{ $major->name }}" @selected(request('industry_for_name') === $major->name)>{{ $major->name }}</option>
                     @endforeach
-                    @if(request('industry') && !in_array(request('industry'), $industries))
-                        <option value="{{ request('industry') }}" selected>{{ request('industry') }}</option>
-                    @endif
                 </select>
             </div>
             @php($hasNotes = request('has_notes'))

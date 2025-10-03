@@ -4,5 +4,5 @@
 
 @section('content')
 <h1>Update Supervisor</h1>
-@include('supervisor.form', ['action' => url('/supervisors/' . $supervisor->id), 'method' => 'PUT', 'supervisor' => $supervisor])
+@include('supervisor.form', ['action' => $schoolRoute('supervisors/' . $supervisor->id), 'method' => 'PUT', 'supervisor' => $supervisor])
 @endsection

@@ -1,6 +1,19 @@
 @php
     $userId = session('user_id');
     $role = session('role');
+    $hasSchool = app()->bound('currentSchool');
+    $schoolId = $hasSchool ? app('currentSchool')->id : null;
+    $schoolUrl = function (string $path = '') use ($hasSchool, $schoolId) {
+        if ($hasSchool && $schoolId !== null) {
+            $trimmed = trim($path, '/');
+            $segment = $schoolId . ($trimmed !== '' ? '/' . $trimmed : '');
+            return url($segment === '' ? '/' : $segment);
+        }
+
+        $trimmed = trim($path, '/');
+        return url($trimmed === '' ? '/' : $trimmed);
+    };
+
     $user = \Illuminate\Support\Facades\DB::table('users')->where('id', $userId)->select('name')->first();
     $name = $user->name ?? '';
     $photo = null;
@@ -9,18 +22,26 @@
         $student = \Illuminate\Support\Facades\DB::table('students')->where('user_id', $userId)->select('id','photo')->first();
         if ($student) {
             $photo = $student->photo;
-            $settingsUrl = route('student.edit', ['id' => $student->id]);
+            if ($hasSchool) {
+                $settingsUrl = $schoolUrl('settings/profile');
+            }
         }
     } elseif ($role === 'supervisor') {
         $supervisor = \Illuminate\Support\Facades\DB::table('supervisors')->where('user_id', $userId)->select('id','photo')->first();
         if ($supervisor) {
             $photo = $supervisor->photo;
-            $settingsUrl = route('supervisors.edit', ['id' => $supervisor->id]);
+            if ($hasSchool) {
+                $settingsUrl = $schoolUrl('settings/profile');
+            }
         }
     } elseif ($role === 'admin') {
-        $settingsUrl = route('admins.edit', ['id' => $userId]);
+        if ($hasSchool) {
+            $settingsUrl = $schoolUrl('settings/profile');
+        }
     } elseif ($role === 'developer') {
-        $settingsUrl = route('developers.edit', ['id' => $userId]);
+        if ($hasSchool) {
+            $settingsUrl = $schoolUrl('settings/profile');
+        }
     }
 @endphp
 <header class="app-header navbar px-3">

@@ -11,7 +11,7 @@ class EnsureDeveloper
     public function handle(Request $request, Closure $next): Response
     {
         if (session('role') !== 'developer') {
-            abort(401, 'Akses ditolak.');
+            abort(403, 'Access denied.');
         }
         return $next($request);
     }

@@ -83,7 +83,7 @@
                             <dt class="col-sm-5">Institution Name</dt>
                             <dd class="col-sm-7">
                                 @if($log->institution_id)
-                                    <a href="/institutions/{{ $log->institution_id }}/read">{{ $log->institution_name }}</a>
+                                    <a href="{{ $schoolRoute('institutions/' . $log->institution_id . '/read') }}">{{ $log->institution_name }}</a>
                                 @else
                                     {{ $log->institution_name }}
                                 @endif
@@ -102,8 +102,8 @@
                                     —
                                 @endif
                             </dd>
-                            <dt class="col-sm-5">Institution Industry</dt>
-                            <dd class="col-sm-7">{{ $log->institution_industry ?? '—' }}</dd>
+                            <dt class="col-sm-5">Institution Industry For</dt>
+                            <dd class="col-sm-7">{{ $log->institution_industry_for_name ?? '—' }}</dd>
                             <dt class="col-sm-5">Institution Notes</dt>
                             <dd class="col-sm-7">{{ $log->institution_notes ?? '—' }}</dd>
                             <dt class="col-sm-5">Institution Contact Name</dt>
@@ -209,10 +209,10 @@
 </div>
 
 <div class="d-flex flex-wrap gap-2">
-    <a href="/monitorings" class="btn btn-secondary">Back</a>
+    <a href="{{ $schoolRoute('monitorings') }}" class="btn btn-secondary">Back</a>
     @if($role !== 'student')
-        <a href="/monitorings/{{ $log->monitoring_log_id }}/update" class="btn btn-warning">Update</a>
-        <form action="/monitorings/{{ $log->monitoring_log_id }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this monitoring?');">
+        <a href="{{ $schoolRoute('monitorings/' . $log->monitoring_log_id . '/update') }}" class="btn btn-warning">Update</a>
+        <form action="{{ $schoolRoute('monitorings/' . $log->monitoring_log_id) }}" method="POST" class="d-inline" onsubmit="return confirm('Delete this monitoring?');">
             @csrf
             @method('DELETE')
             <button class="btn btn-danger" type="submit">Delete</button>

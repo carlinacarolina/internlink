@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 
 class AdminUserController extends Controller
 {
@@ -14,13 +15,28 @@ class AdminUserController extends Controller
 
     public function index(Request $request)
     {
-        if (!in_array(session('role'), ['admin', 'developer'])) {
-            abort(401);
+        $role = session('role');
+        if (!in_array($role, ['admin', 'developer'], true)) {
+            abort(403);
         }
+
+        $schoolId = $this->currentSchoolId();
+        $sessionSchoolId = session('school_id');
+
         $query = User::query()->select(self::BASE_SELECT);
-        if (session('role') === 'admin') {
-            $query->where('id', session('user_id'));
+
+        if ($role === 'admin') {
+            if (!$sessionSchoolId || ($schoolId && (int) $schoolId !== (int) $sessionSchoolId)) {
+                abort(403);
+            }
+
+            $query->where('id', session('user_id'))
+                ->where('role', 'admin')
+                ->where('school_id', $sessionSchoolId);
         } else {
+            if ($schoolId) {
+                $query->where('school_id', $schoolId);
+            }
             $query->where('role', 'admin');
         }
 
@@ -95,19 +111,26 @@ class AdminUserController extends Controller
     public function create()
     {
         if (session('role') !== 'developer') {
-            abort(401);
+            abort(403);
         }
+        abort_if(!$this->currentSchoolId(), 404, 'School context missing.');
         return view('admin.create');
     }
 
     public function store(Request $request)
     {
         if (session('role') !== 'developer') {
-            abort(401);
+            abort(403);
         }
+        $schoolId = $this->currentSchoolId();
+        abort_if(!$schoolId, 400, 'School context required.');
         $data = $request->validate([
             'name' => 'required|string',
-            'email' => 'required|email|unique:users,email',
+            'email' => [
+                'required',
+                'email',
+                Rule::unique('users', 'email')->where(fn ($q) => $q->where('school_id', $schoolId)),
+            ],
             'phone' => 'nullable|string',
             'password' => 'required|string',
         ]);
@@ -117,61 +140,94 @@ class AdminUserController extends Controller
             'phone' => $data['phone'] ?? null,
             'password' => Hash::make($data['password']),
             'role' => 'admin',
+            'school_id' => $schoolId,
         ]);
-        return redirect('/admins');
+        return redirect($this->schoolRoute('admins'))->with('status', 'Admin created.');
     }
 
-    public function show($id)
+    public function show($school, $id)
     {
-        $query = User::query()->select(self::DISPLAY_COLUMNS)->where('role', 'admin')->where('id', $id);
-        if (session('role') === 'admin') {
+        $role = session('role');
+        $schoolId = $this->currentSchoolId();
+        $query = User::query()
+            ->select(self::DISPLAY_COLUMNS)
+            ->where('role', 'admin')
+            ->where('id', $id);
+
+        if ($role === 'admin') {
             if ((int) $id !== (int) session('user_id')) {
-                abort(401);
+                abort(403);
             }
-        } elseif (session('role') === 'developer') {
-            // developers can view any admin
+            $query->where('school_id', session('school_id'));
+        } elseif ($role === 'developer') {
+            if ($schoolId) {
+                $query->where('school_id', $schoolId);
+            }
         } else {
-            abort(401);
+            abort(403);
         }
         $admin = $query->firstOrFail();
         return view('admin.show', compact('admin'));
     }
 
-    public function edit($id)
+    public function edit($school, $id)
     {
+        $role = session('role');
+        $schoolId = $this->currentSchoolId();
+
         $query = User::query()->where('role', 'admin')->where('id', $id);
-        if (session('role') === 'admin') {
+
+        if ($role === 'admin') {
             if ((int) $id !== (int) session('user_id')) {
-                abort(401);
+                abort(403);
             }
-        } elseif (session('role') === 'developer') {
-            // developers can edit any admin
+            $query->where('school_id', session('school_id'));
+        } elseif ($role === 'developer') {
+            if ($schoolId) {
+                $query->where('school_id', $schoolId);
+            }
         } else {
-            abort(401);
+            abort(403);
         }
         $admin = $query->firstOrFail();
         return view('admin.edit', compact('admin'));
     }
 
-    public function update(Request $request, $id)
+    public function update(Request $request, $school, $id)
     {
+        $role = session('role');
+        $schoolId = $this->currentSchoolId();
+
         $query = User::query()->where('role', 'admin')->where('id', $id);
-        if (session('role') === 'admin') {
+
+        if ($role === 'admin') {
             if ((int) $id !== (int) session('user_id')) {
-                abort(401);
+                abort(403);
             }
-        } elseif (session('role') === 'developer') {
-            // developers can update any admin
+            $query->where('school_id', session('school_id'));
+        } elseif ($role === 'developer') {
+            if ($schoolId) {
+                $query->where('school_id', $schoolId);
+            }
         } else {
-            abort(401);
+            abort(403);
         }
+
         $admin = $query->firstOrFail();
         if ($request->has('role')) {
             return back()->withErrors(['role' => 'Role modification is not allowed.'])->withInput();
         }
+
+        $targetSchoolId = $schoolId ?? $admin->school_id;
         $data = $request->validate([
             'name' => 'required|string',
-            'email' => 'required|email|unique:users,email,' . $admin->id,
+            'email' => [
+                'required',
+                'email',
+                Rule::unique('users', 'email')
+                    ->ignore($admin->id)
+                    ->where(fn ($q) => $q->where('school_id', $targetSchoolId)),
+            ],
             'phone' => 'nullable|string',
             'password' => 'nullable|string',
         ]);
@@ -182,29 +238,52 @@ class AdminUserController extends Controller
             $admin->password = Hash::make($data['password']);
         }
         $admin->save();
-        return redirect('/admins');
+        return redirect($this->schoolRoute('admins'))->with('status', 'Admin updated.');
     }
 
-    public function destroy($id)
+    public function destroy($school, $id)
     {
-        if (session('role') === 'admin') {
-            if ((int)$id !== (int)session('user_id')) {
-                abort(401);
+        $role = session('role');
+        $schoolId = $this->currentSchoolId();
+        $sessionSchoolId = session('school_id');
+
+        $query = User::query()->where('role', 'admin')->where('id', $id);
+        $scopeSchoolId = null;
+
+        if ($role === 'admin') {
+            if ((int) $id !== (int) session('user_id')) {
+                abort(403);
             }
-        } elseif (session('role') === 'developer') {
-            // allow
+            $scopeSchoolId = $sessionSchoolId;
+            $query->where('school_id', $sessionSchoolId);
+        } elseif ($role === 'developer') {
+            $scopeSchoolId = $schoolId;
+            if ($schoolId) {
+                $query->where('school_id', $schoolId);
+            }
         } else {
-            abort(401);
+            abort(403);
         }
-        if (User::where('role', 'admin')->count() <= 1) {
+
+        $admin = $query->firstOrFail();
+        $effectiveSchoolId = $scopeSchoolId ?? $admin->school_id;
+
+        $adminCount = User::where('role', 'admin')
+            ->when($effectiveSchoolId, fn ($q) => $q->where('school_id', $effectiveSchoolId))
+            ->count();
+
+        if ($adminCount <= 1) {
             return back()->withErrors(['error' => 'Cannot delete the last admin account.']);
         }
-        User::query()->where('role', 'admin')->where('id', $id)->firstOrFail()->delete();
-        if (session('role') === 'admin') {
+
+        $admin->delete();
+
+        if ($role === 'admin') {
             session()->invalidate();
             session()->regenerateToken();
             return redirect('/login');
         }
-        return redirect('/admins');
+
+        return redirect($this->schoolRoute('admins'))->with('status', 'Admin deleted.');
     }
 }

@@ -10,12 +10,13 @@ class Institution extends Model
     use HasFactory;
 
     protected $fillable = [
+        'school_id',
         'name',
         'address',
         'city',
         'province',
         'website',
-        'industry',
+        'industry_for',
         'notes',
         'photo',
     ];
@@ -28,5 +29,15 @@ class Institution extends Model
     public function quotas()
     {
         return $this->hasMany(InstitutionQuota::class);
+    }
+
+    public function school()
+    {
+        return $this->belongsTo(School::class);
+    }
+
+    public function industryFor()
+    {
+        return $this->belongsTo(SchoolMajor::class, 'industry_for');
     }
 }

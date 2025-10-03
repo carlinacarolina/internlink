@@ -10,6 +10,7 @@ class MonitoringLog extends Model
     use HasFactory;
 
     protected $fillable = [
+        'school_id',
         'internship_id',
         'supervisor_id',
         'log_date',
@@ -21,4 +22,9 @@ class MonitoringLog extends Model
     protected $casts = [
         'log_date' => 'date',
     ];
+
+    public function school()
+    {
+        return $this->belongsTo(School::class);
+    }
 }

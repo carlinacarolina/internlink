@@ -1,131 +1,58 @@
-# agents/supervisor.md 
+# agents/supervisor.md
 
-CRUD Supervisor is used to perform operations on the **user** table with the **Supervisor** role, along with the **supervisor** table. The **supervisor** table is therefore highly dependent on the **user** table.
-
-> Before reading this document, make sure you have already read **AGENTS.md** to understand the context.
+Supervisors are counsellors/teachers who oversee internships. Account data resides in `core.users`, profile data in `app.supervisors`. Controller: `App\Http\Controllers\SupervisorController`.
 
 ---
 
 ## Access Rights
-* **Create**: Only roles above Supervisor can perform full Create operations.  
-* **Read**: Only the Supervisor role and the supervisor themselves can view their own data; they cannot view other Supervisors. Roles above Supervisor can perform full Read operations.  
-* **Update**: Only the Supervisor role and the supervisor themselves can update their own data; they cannot update other Supervisors. Roles above Supervisor can perform full Update operations.  
-* **Delete**: Only the Supervisor role and the supervisor themselves can delete their own data; they cannot delete other Supervisors. Roles above Supervisor can perform full Delete operations.  
+- **Developers / Admins**: full CRUD.
+- **Supervisors**: list/read/update/delete only their own account; cannot create new supervisors.
+- **Students** and other roles: blocked.
 
 ---
 
-## List – `/supervisors/`
-
-1. Page title: **Supervisors**.  
-
-2. **Search Input**  
-   * Search across all displayed table columns (no 10-record limit).  
-   * Search executes only after the user submits the form via the **Search** button or pressing Enter.  
-   * Changing the input alone does not trigger a search.
-
-3. **Button filter**
-   * This button only appears when applying filters.
-   * The number of buttons corresponds to how many filters are applied.
-   * Button format: “{filter name}: {filter value}”
-
-4. **Filter** (sidebar opens from the right after clicking the filter button):  
-   * Title: **Filter Supervisors**  
-   * **X** button to close the sidebar  
-   * Inputs:  
-     * Name (text)  
-     * Email (text)  
-     * Phone (text)  
-     * Is Email Verified? (radio: True / False / Any)  
-     * Email Verified At (date)  
-     * Department (text)  
-     * Have notes? (radio: True / False / Any)  
-     * Have photo? (radio: True / False / Any)  
-   * **Reset** button to clear filters  
-   * **Apply** button to apply filters  
-   * Note: Filters can be combined for more specific search results.  
-
-5. **Table** with columns: Name, Email, Phone, Department.  
-Notes: Anticipate if the table width exceeds the screen width due to its content. By adding a horizontal scroll bar below the table if it exceeds the screen width. Don't force the table to be long and wide explicitly, but adjust it to the content.
-
-6. Display **10 records per page**, with **Next** and **Back** navigation.  
-
-7. Display the total number of supervisors.  
-
-8. Display page information in the format: `Page X out of N` (X = current page, N = total pages).  
+## List — `/{school_code}/supervisors`
+- Filters: Name, Email, Phone, Email Verified (`true/false`), Email Verified At (date), Department (text match), Has Notes (`true/false`), Has Photo (`true/false`).
+- Search (`q`) spans all visible columns.
+- Table columns: Name, Email, Phone, Department, Actions.
+- Pagination: 10 rows per page, total count, `Page X of N`.
+- **Create Supervisor** button hidden when the active role is supervisor.
 
 ---
 
-## Create – `/supervisors/create/`
-
-1. Page title: **Create Supervisor**.  
-
-2. Inputs:  
-   * Name (Text)  
-   * Email (Email)  
-   * Phone (Number)  
-   * Password (Password)  
-   * Supervisor Number (Number)  
-   * Department (Text)  
-   * Notes (TextArea)  
-   * Photo (Text)  
-
-3. Notes:  
-   * ID is not an input field.  
-   * User ID is not an input field.  
-   * Role is assigned automatically.  
-   * `email_verified_at` is still TBD.  
-
-4. **Cancel** button to go back.  
-
-5. **Save** button to store the new data.  
+## Create — `/{school_code}/supervisors/create`
+- Inputs: Name, Email, Phone (optional), Password, Supervisor Number, Department (Tom Select of active `school_majors`), Notes (optional), Photo URL (optional).
+- Save creates both the user (`role = supervisor`) and the supervisor profile row.
 
 ---
 
-## Read – `/supervisors/[id]/read/`
-
-Supervisor details are displayed as:  
-* Photo: {value}  
-* Name: {value}  
-* Email: {value}  
-* Phone: {value}  
-* Email Verified At: {value} (if empty, display **False**)  
-* Supervisor Number: {value}  
-* Department: {value}  
-* Notes: {value}  
+## Read — `/{school_code}/supervisors/{id}/read`
+- Displays: Photo, Name, Email, Phone, Email Verified At (`True/False`), Supervisor Number, Department, Notes, Created/Updated timestamps.
+- Supervisors are limited to their own record.
 
 ---
 
-## Update – `/supervisors/[id]/update/`
-
-1. Page title: **Update Supervisor**.  
-
-2. Inputs:  
-   * Name (Text)  
-   * Email (Email)  
-   * Phone (Number)  
-   * Password (Password)  
-   * Supervisor Number (Number)  
-   * Department (Text)  
-   * Notes (TextArea)  
-   * Photo (Text)  
-
-3. Notes:  
-   * ID is not an input field.  
-   * User ID is not an input field.  
-   * Role is assigned automatically.  
-   * `email_verified_at` is still TBD.  
-   * All inputs have default values from the database, except Password.  
-   * If Password is not changed, the old value is not overwritten.  
-
-4. **Cancel** button to go back.  
-
-5. **Save** button to store the changes.  
+## Update — `/{school_code}/supervisors/{id}/update`
+- Same form as Create; password optional when editing.
+- Department selector remains linked to `school_majors`.
 
 ---
 
 ## Delete
-
-Delete records using the **Delete** button in the table at the `/supervisors/` endpoint.  
+- Delete button on list/detail. When a supervisor deletes themselves, the session is invalidated and redirected to `/login` with a status message.
 
 ---
- 
+
+## Validation Summary
+- Email: required, unique per school.
+- Supervisor Number: required, unique per school (`Rule::unique('supervisors')->where('school_id', …)`).
+- Department: required `department_id` referencing `school_majors`.
+- Notes & Photo: optional text fields.
+- Phone: optional string.
+
+---
+
+## Data Source Notes
+- Tables: `core.users` (`role = supervisor`), `app.supervisors` (FKs to users, schools, school majors).
+- View: `supervisor_details_view` powers listing and read pages.
+- Triggers: `trg_supervisors_role` enforces the role; `trg_supervisors_updated_at` maintains timestamps.

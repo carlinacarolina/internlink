@@ -1,158 +1,73 @@
 # agents/application.md
 
-The CRUD Application is used to perform operations on the **application** table.
-
-> Before reading this document, make sure you have read **AGENTS.md** to understand the context.
+Applications connect students to institutions and periods. The controller is `App\Http\Controllers\ApplicationController`; it relies heavily on the `application_details_view` read model and the staff assignment map from `major_staff_assignments`.
 
 ---
 
 ## Access Rights
-* **Create**: The Student role can only create an application for themselves if and only if he does not have other application data. Higher roles can perform full Create operations.
-* **Read**: The Student role can only view their own application. Higher roles can perform full Read operations.  
-* **Update**: The Student role can only update if the *Student Access* column is set to **True**. Higher roles can perform full Update operations.  
-* **Delete**: The Student role can only delete if the *Student Access* column is set to **True**.. Higher roles can perform full Delete operations.  
+- **Developers / Admins / Supervisors**: full CRUD within the active school realm.
+- **Students**: may create exactly one application (if none exists), view their own records, and edit/delete only when `student_access = true`. Routes emit HTTP 401 when the guard fails.
+- **Other roles**: blocked.
 
 ---
 
-## List – `/applications/`
-1. Page title: **Applications**
-
-2. **Search Input**  
-   * Search across all displayed table columns (no 10-record limit).  
-   * Search executes only after the user submits the form via the **Search** button or pressing Enter.  
-   * Changing the input alone does not trigger a search.
-
-3. **Button filter**
-   * This button only appears when applying filters.
-   * The number of buttons corresponds to how many filters are applied.
-   * Button format: “{filter name}: {filter value}”
-
-4. **Filter** (sidebar opens from the right when the filter button is clicked)  
-   * Title: **Filter Applications**  
-   * **X** button to close the sidebar  
-   * Inputs:  
-     * Student Name (Text)  
-     * Institution Name (Text)  
-     * Period (Dropdown) (Tom Select) (format: "{year}: {term}")
-     * Status Application (Dropdown, no Tom Select)  
-     * Student Access (Radio: True / False / Any)  
-     * Submitted At (Date)  
-     * Have Notes? (Radio: True / False / Any)  
-   * **Reset** button to clear filters  
-   * **Apply** button to apply filters  
-   * Note: Filters can be combined for more specific searches.  
-
-5. **Table** columns: Student Name, Institution Name, Year, Term, Status Application, Student Access, Submitted At.  
-   * Anticipate table width exceeding screen size → add horizontal scroll.  
-   * Do not force table to stretch; adjust only as needed to fit content.  
-
-6. Show **10 records per page** with **Next** and **Back** navigation.
-
-7. Show the total number of applications.
-
-8. Show page info in the format: `Page X out of N` (X = current page, N = total pages).  
+## List — `/{school_code}/applications`
+- Controls: search box (`q`), `Print All` (downloads a PDF for applications in `under_review`/`draft`), `Filter` off-canvas, `Create Application` button.
+- Filter inputs: Student Name, Institution Name, Period (Tom Select fed by `periodOptions`), Status (enum), Student Access (`true/false/any`), Submitted At (date), Has Notes (`true/false/any`). Applied filters appear as removable chips.
+- Table columns: `#`, Student, Institution, Year, Term, Status, Student Access, Planned Start, Planned End, Submitted At, Actions (Read/Update/Delete).
+- Pagination: 10 rows/page with total count and `Page X of N` summary.
 
 ---
 
-## Create – `/applications/create/`
-1. Page title: **Create Application**  
-2. Inputs:  
-   * Student Name (Dropdown, Tom Select)
-   * "+" (Button) to add a new Student Name
-   * Additional Student Name (Dropdown, Tom Select, appears after pressing +)
-   * Apply to all students who do not yet have the application (Checkbox)
-   * Institution Name (Dropdown, Tom Select)  
-   * Period (Dropdown) (Tom Select) (format: "{year}: {term}" – show only after Institution is chosen and list periods linked to that institution)
-   * Status Application (Dropdown, no Tom Select)
-   * Student Access (Radio: True / False / Any) (Display the input only if the role is not a student)
-   * Submitted At (Date)
-   * Notes (Textarea)
-   * Cancel (Button)
-   * Save (Button)
-
-3. Notes:  
-   * Student Name input shows the name, not the ID. Database still stores the ID.  
-   * Period shows the year and term, not the ID, Database still stores the ID.
-   * Additional Student Name dropdown, make sure that the selected name does not appear again in the dropdown menu.
-   * Institution Name works the same way.
-   * Period dropdown remains hidden until Institution is selected and must only list periods that belong to the chosen institution (based on linked quotas).
-
-4. **Cancel** button navigates back.  
-5. **Save** button stores the new data.  
+## Create — `/{school_code}/applications/create`
+- **Students** see only their own name and cannot use bulk helpers.
+- **Non-student roles** may:
+  - Pick one or more students (Tom Select). Additional selects appear via the `+` button; all selections must share the same major.
+  - Use `Apply to all students who do not yet have the application` to auto-include every student (without an application) in the same major.
+- Institution pick plus planned start date auto-detect the internship period (Term 1 = Jan–Jun, Term 2 = Jul–Dec). If the required `(institution, period)` quota is missing, the form blocks submission and surfaces an inline modal to create it before continuing.
+- Inputs: Students[], Institution, Status (enum), Student Access (`True/False/Any` radio visible to privileged roles), Planned Start Date, Planned End Date, Submitted At (date), Notes (textarea). The detected period is displayed read-only.
+- Validation before save ensures: selected students exist in the school, share a major, have a staff contact, and do not already have an application for the chosen institution/period.
 
 ---
 
-## Read – `/applications/[id]/read/`
-Application details displayed as:  
-* Student Photo
-* Student Name (click → `/students/[id]/read/`)  
-* Student Email
-* Student Phone  
-* Student Number  
-* National Student Number  
-* Student Major  
-* Student Class  
-* Student Batch  
-* Student Notes  
-* Institution Photo  
-* Institution Name (click → `/institutions/[id]/read/`)  
-* Institution Address  
-* Institution City  
-* Institution Province  
-* Institution Website  
-* Institution Industry  
-* Institution Notes  
-* Institution Contact Name  
-* Institution Contact Email  
-* Institution Contact Phone  
-* Institution Contact Position  
-* Institution Contact Primary  
-* Institution Quota  
-* Institution Quota Used  
-* Institution Quota Period Year  
-* Institution Quota Period Term  
-* Institution Quota Notes  
-* Period Year  
-* Period Term  
-* Status Application  
-* Student Access  
-* Submitted At  
-* Notes  
+## Read — `/{school_code}/applications/{id}/read`
+- Card layout showing student profile, institution snapshot, assigned staff contact, and application metadata (status, student access, planned dates, submitted at, notes).
+- Links out to the related Student and Institution detail pages.
+- Actions: Back, Download PDF (`/{id}/pdf/print`), Update.
 
 ---
 
-## Update – `/applications/[id]/update/`
-1. Page title: **Update Application**  
-2. Inputs:  
-   * Student Name (Dropdown, Tom Select – disabled, default from database)
-   * "+" (Button) to add a new Student Name
-   * Additional Student Name (Dropdown, Tom Select, appears after pressing +)
-   * Apply to all applications with the same institution (Checkbox)
-   * Institution Name (Dropdown, Tom Select)
-   * Period (Dropdown) (Tom Select) (format: "{year}: {term}" – show only after Institution is chosen and list periods linked to that institution)
-   * Status Application (Dropdown, no Tom Select)
-   * Student Access (Radio: True / False / Any) (Display the input only if the role is not a student)
-   * Submitted At (Date)
-   * Notes (Textarea)
-   * Cancel (Button)
-   * Save (Button)
-
-3. Notes:  
-   * Student Name & Institution Name are displayed as names; the database still stores IDs.
-   * All inputs load default values from the database.
-   * Additional Student Name dropdown only shows students from the same institution as the first Student Name and make sure that the selected name does not appear again in the dropdown menu.
-   * The checkbox automatically adds all Student Names from the same institution.
-   * Do not display Student Names already selected in other inputs.
-   * If all Student Names from the institution are already selected → the + button becomes disabled.
-   * Period shows the year and term, not the ID, Database still stores the ID.
-   * Period dropdown stays hidden until an institution is selected and must only list periods available for that institution.
-
-4. **Cancel** button navigates back.  
-5. **Save** button stores changes.  
+## Update — `/{school_code}/applications/{id}/update`
+- Student select is prefilled; non-student roles can include additional students from the same institution (enforced by the controller).
+- Checkbox **Apply to all applications with the same institution** updates every matching application for the selected students.
+- Non-students may toggle `student_access`; students cannot.
+- Planned dates follow the same rules as create (end date cannot precede start date).
 
 ---
 
 ## Delete
-Delete records through the **Delete** button in the table at `/applications/`.  
+- Button on the table row. Students may delete only when `student_access` is true.
+- Soft restrictions: controller denies deletion if the student is unauthorised.
 
 ---
+
+## Validation Summary
+- `student_ids`: required array; each id must exist in `students` for the active school. Student actors are restricted to `[current_student_id]`.
+- `(student_id, institution_id, period_id)` must stay unique (`uq_application_unique_per_period`). Controller pre-checks duplicates before insert/update.
+- Status enum: `submitted | under_review | accepted | rejected | cancelled` (the print-all helper still checks for `draft` but normal forms do not expose it).
+- `student_access`: boolean flag. Students never see the control; non-students choose `true` or `false` (default `false`).
+- `submitted_at`: required ISO date; stored as timestamp.
+- `planned_start_date`: required; determines the target period (Term 1 = Jan–Jun, Term 2 = Jul–Dec). `planned_end_date`: optional, but end must be ≥ start and does not alter the period binding.
+- Period records are auto-created for the active school when missing; a matching institution quota must exist (use the inline modal helper from the create/update forms when needed).
+- Major coverage: every selected student must have a major and there must be a matching entry in `major_staff_assignments`.
+- Trigger safeguards (see migration):
+  - Active statuses require matching institution quotas and enforce a max of 3 active applications per student per period.
+  - Audit rows are written to `application_status_history` with the acting user id (students are prevented by the trigger).
+
+---
+
+## Data Source Notes
+- Table: `app.applications` with FKs to students, institutions, periods, and schools.
+- Views: `application_details_view` (primary list/read source) plus `school_details_view` for PDF header data.
+- Auxiliary tables: `app.major_staff_assignments`, `app.institution_quotas`, `app.application_status_history`.
+- PDF generation: Browsershot renders `resources/views/application/pdf.blade.php`; `printAll` concatenates groups by institution & period.
