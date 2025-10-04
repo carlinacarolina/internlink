@@ -46,6 +46,11 @@ services:
       context: .
       dockerfile: docker/php/Dockerfile
       target: development
+      args:
+        ENABLE_REDIS_EXTENSION: ${ENABLE_REDIS_EXTENSION:-1}
+        REDIS_EXT_VERSION: ${REDIS_EXT_VERSION:-6.0.2}
+        INSTALL_COMPOSER_DEPENDENCIES: ${INSTALL_COMPOSER_DEPENDENCIES:-1}
+        INSTALL_NODE_DEPENDENCIES: ${INSTALL_NODE_DEPENDENCIES:-1}
     container_name: internlink_app
     restart: unless-stopped
     environment:
@@ -109,6 +114,11 @@ services:
       context: .
       dockerfile: docker/php/Dockerfile
       target: development
+      args:
+        ENABLE_REDIS_EXTENSION: ${ENABLE_REDIS_EXTENSION:-1}
+        REDIS_EXT_VERSION: ${REDIS_EXT_VERSION:-6.0.2}
+        INSTALL_COMPOSER_DEPENDENCIES: ${INSTALL_COMPOSER_DEPENDENCIES:-1}
+        INSTALL_NODE_DEPENDENCIES: ${INSTALL_NODE_DEPENDENCIES:-1}
     container_name: internlink_queue
     restart: unless-stopped
     environment:

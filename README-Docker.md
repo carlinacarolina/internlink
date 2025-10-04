@@ -1,385 +1,106 @@
-# 🐳 InternLink Docker Setup
+# InternLink Docker Guide
 
-This document provides comprehensive instructions for setting up and running InternLink using Docker with PostgreSQL.
+This guide explains how to bootstrap and run the InternLink development environment with Docker. The commands below assume you are working from the repository root.
 
-## 📋 Prerequisites
-
-- Docker Engine 20.10+
-- Docker Compose 2.0+
+## Prerequisites
+- Docker Engine 20.10 or newer
+- Docker Compose plugin 2.0 or newer (or the legacy `docker-compose` binary)
 - Git
-- At least 4GB RAM available for containers
+- At least 4 GB of available RAM for containers
+- Access to the Docker daemon (Docker Desktop running or the service started, and your user in the `docker` group)
 
-## 🚀 Quick Start
-
-### 1. Clone and Setup
-
+## One-Time Setup
 ```bash
-# Clone the repository
+# Clone the repository if you haven't already
 git clone <repository-url>
 cd internlink
 
-# Run the setup script
-./docker-scripts/setup.sh
+# Provision and start all containers
+./docker-scripts/linux/setup.sh
 ```
 
-### 2. Access the Application
+> If you see a permissions error about `/var/run/docker.sock`, ensure Docker is running and your user can access the daemon (e.g. `sudo usermod -aG docker $USER` then log out/in).
 
-- **Application**: http://localhost:8000
-- **Database**: localhost:5433
-- **Redis**: localhost:6379
+The setup script orchestrates the following steps:
+- validates Docker and Docker Compose availability
+- creates `.env` from `docker/env.example` if it is missing
+- ensures storage-related directories exist locally and adjusts permissions
+- builds each service image and starts the stack (app, postgres, redis, node, queue workers)
+- prompts you to run `composer install` and `npm ci` inside the app container so host-mounted dependencies are ready
+- waits for PostgreSQL to accept connections
+- fixes runtime permissions inside the PHP container
+- generates a Laravel `APP_KEY` when one is not present
+- clears Laravel caches, runs database migrations and seeds, and recreates the storage symlink
 
-## 🏗️ Architecture
+After the script completes, the application is reachable at `http://localhost:8000`.
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Web Server    │    │   PostgreSQL    │    │   Queue Worker  │
-│   (PHP/Laravel) │    │   Database      │    │   (PHP)         │
-│   Port: 8000    │◄──►│   Port: 5433    │    │   Background    │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │
-         ▼                       ▼
-┌─────────────────┐    ┌─────────────────┐
-│   Node.js       │    │   Redis         │
-│   (Vite Build)  │    │   Cache         │
-│   Port: 5173    │    │   Port: 6379   │
-└─────────────────┘    └─────────────────┘
-```
+## Service Overview
+| Service   | Compose name | Port | Purpose |
+|-----------|--------------|------|---------|
+| App       | `app`        | 8000 | Laravel application container (Nginx + PHP-FPM via Supervisor) |
+| Postgres  | `postgres`   | 5433 | Primary relational database |
+| Redis     | `redis`      | 6379 | Cache and queue backend |
+| Node/Vite | `node`       | 5173 | Frontend asset builder with hot reload (development profile) |
+| Queue     | `queue`      | —    | Runs Laravel queue workers |
 
-## 📁 File Structure
+_Exposed ports can be changed by editing the relevant entries in `.env`._
 
-```
-internlink/
-├── docker/
-│   ├── nginx/
-│   │   ├── default.conf      # Production Nginx config
-│   │   └── dev.conf          # Development Nginx config
-│   ├── php/
-│   │   └── Dockerfile        # PHP/Laravel container
-│   ├── node/
-│   │   └── Dockerfile        # Node.js/Vite container
-│   ├── supervisor/
-│   │   └── supervisord.conf  # Process management
-│   ├── postgres/
-│   │   ├── init/
-│   │   │   └── 01-init.sql   # Database initialization
-│   │   └── backup/           # Database backups
-│   └── env.example           # Environment template
-├── docker-scripts/
-│   ├── setup.sh              # Initial setup
-│   ├── build.sh              # Build images
-│   └── deploy.sh             # Production deployment
-├── docker-compose.yml         # Development environment
-├── docker-compose.prod.yml    # Production environment
-└── README-Docker.md          # This file
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-
-Copy the environment template and customize:
-
+## Day-to-Day Commands
 ```bash
-cp docker/env.example .env
+# Start the environment in the background
+docker compose up -d
+
+# Start the optional Node development profile
+docker compose --profile development up -d node
+
+# Stop the environment
+docker compose down
+
+# Follow application logs
+docker compose logs -f app
+
+# Run an Artisan command
+docker compose exec app php artisan migrate
+
+# Access the application container shell
+docker compose exec app bash
+
+# Access PostgreSQL using credentials from .env
+DB_USER=$(grep -m1 '^DB_USERNAME=' .env | cut -d= -f2)
+DB_PASS=$(grep -m1 '^DB_PASSWORD=' .env | cut -d= -f2)
+DB_NAME=$(grep -m1 '^DB_DATABASE=' .env | cut -d= -f2)
+PGPASSWORD="$DB_PASS" docker compose exec postgres psql -U "$DB_USER" -d "$DB_NAME"
 ```
 
-Key variables to update:
+If your system only provides the legacy `docker-compose` binary, substitute `docker-compose` for `docker compose` in the commands above.
+
+## Environment Variables
+Copy `docker/env.example` to `.env` when you first clone the project. The setup script will handle this automatically, but you can update values at any time. Key entries to review:
 
 ```env
-# Application
-APP_NAME="InternLink"
-APP_KEY=base64:your-generated-key-here
 APP_URL=http://localhost:8000
-
-# Database (PostgreSQL)
 DB_DATABASE=internlink
 DB_USERNAME=internlink
-DB_PASSWORD=your-secure-password
-
-# Redis
-REDIS_PASSWORD=your-redis-password
-
-# Ports
+DB_PASSWORD=change-me
+REDIS_PASSWORD=change-me
 APP_PORT=8000
 VITE_PORT=5173
 ```
 
-### Database Configuration
-
-The application uses PostgreSQL with the following default settings:
-
-- **Database**: internlink
-- **Username**: internlink
-- **Password**: password (change in production)
-- **Port**: 5433
-- **Extensions**: uuid-ossp, pg_trgm
-
-## 🛠️ Development
-
-### Starting Development Environment
-
-```bash
-# Start all services
-docker compose up -d
-# OR if you have docker-compose installed:
-# docker-compose up -d
-
-# View logs
-docker compose logs -f app
-
-# Access application container
-docker compose exec app bash
-
-# Run Laravel commands
-docker compose exec app php artisan migrate
-docker compose exec app php artisan db:seed
-```
-
-### Asset Development
-
-For frontend development with hot reload:
-
-```bash
-# Start with Node.js container
-docker compose --profile development up -d
-# OR if you have docker-compose installed:
-# docker-compose --profile development up -d
-
-# Access Vite dev server
-# Available at: http://localhost:5173
-```
-
-### Database Operations
-
-```bash
-# Access PostgreSQL
-docker compose exec postgres psql -U internlink -d internlink
-
-# Create backup
-docker compose exec postgres pg_dump -U internlink internlink > backup.sql
-
-# Restore backup
-docker compose exec -T postgres psql -U internlink -d internlink < backup.sql
-```
-
-## 🚀 Production Deployment
-
-### Building Production Images
-
-```bash
-# Build production images
-./docker-scripts/build.sh --production
-
-# Deploy to production
-./docker-scripts/deploy.sh
-```
-
-### Production Environment
-
-The production setup includes:
-
-- **Optimized PHP settings** with OPcache
-- **Security headers** in Nginx
-- **Resource limits** for containers
-- **Health checks** for all services
-- **Multiple queue workers** for scalability
-- **Persistent volumes** for data
-
-### Environment-Specific Commands
-
-```bash
-# Development
-docker compose up -d
-# OR: docker-compose up -d
-
-# Production
-docker compose -f docker-compose.prod.yml up -d
-# OR: docker-compose -f docker-compose.prod.yml up -d
-
-# Staging (if configured)
-docker compose -f docker-compose.staging.yml up -d
-# OR: docker-compose -f docker-compose.staging.yml up -d
-```
-
-## 🔍 Monitoring and Debugging
-
-### Health Checks
-
-All services include health checks:
-
-```bash
-# Check container health
-docker compose ps
-# OR: docker-compose ps
-
-# Application health endpoint
-curl http://localhost:8000/health
-```
-
-### Logs
-
-```bash
-# Application logs
-docker compose logs -f app
-# OR: docker-compose logs -f app
-
-# Database logs
-docker compose logs -f postgres
-# OR: docker-compose logs -f postgres
-
-# All services
-docker compose logs -f
-# OR: docker-compose logs -f
-```
-
-### Debugging
-
-```bash
-# Access application container
-docker compose exec app bash
-# OR: docker-compose exec app bash
-
-# Access database
-docker compose exec postgres psql -U internlink -d internlink
-# OR: docker-compose exec postgres psql -U internlink -d internlink
-
-# Check PHP configuration
-docker compose exec app php -m
-# OR: docker-compose exec app php -m
-
-# Check Laravel configuration
-docker compose exec app php artisan config:show
-# OR: docker-compose exec app php artisan config:show
-```
-
-## 🛡️ Security
-
-### Production Security Checklist
-
-- [ ] Change default passwords
-- [ ] Use strong APP_KEY
-- [ ] Enable Redis authentication
-- [ ] Configure SSL/TLS
-- [ ] Set up firewall rules
-- [ ] Regular security updates
-- [ ] Database backups
-- [ ] Monitor logs
-
-### Security Headers
-
-The Nginx configuration includes:
-
-- X-Frame-Options
-- X-XSS-Protection
-- X-Content-Type-Options
-- Referrer-Policy
-- Content-Security-Policy
-
-## 📊 Performance
-
-### Resource Limits
-
-Production containers have resource limits:
-
-- **App Container**: 1GB RAM limit
-- **Database**: 1GB RAM limit
-- **Redis**: 512MB RAM limit
-- **Queue Workers**: 512MB RAM limit each
-
-### Optimization
-
-- **OPcache** enabled for PHP
-- **Gzip compression** enabled
-- **Static file caching** configured
-- **Database connection pooling**
-- **Redis caching** for sessions and cache
-
-## 🔄 Backup and Recovery
-
-### Database Backup
-
-```bash
-# Manual backup
-docker compose exec postgres pg_dump -U internlink internlink > backup_$(date +%Y%m%d_%H%M%S).sql
-# OR: docker-compose exec postgres pg_dump -U internlink internlink > backup_$(date +%Y%m%d_%H%M%S).sql
-
-# Automated backup (add to cron)
-0 2 * * * docker compose exec postgres pg_dump -U internlink internlink > /backup/internlink_$(date +\%Y\%m\%d).sql
-# OR: 0 2 * * * docker-compose exec postgres pg_dump -U internlink internlink > /backup/internlink_$(date +\%Y\%m\%d).sql
-```
-
-### Volume Backup
-
-```bash
-# Backup volumes
-docker run --rm -v internlink_postgres_data:/data -v $(pwd):/backup alpine tar czf /backup/postgres_backup.tar.gz /data
-```
-
-## 🆘 Troubleshooting
-
-### Common Issues
-
-**Port conflicts:**
-```bash
-# Check port usage
-netstat -tulpn | grep :8000
-# Change ports in .env file
-```
-
-**Permission issues:**
-```bash
-# Fix storage permissions
-docker compose exec app chown -R www-data:www-data storage
-docker compose exec app chmod -R 755 storage
-# OR: docker-compose exec app chown -R www-data:www-data storage
-#     docker-compose exec app chmod -R 755 storage
-```
-
-**Database connection issues:**
-```bash
-# Check database status
-docker compose exec postgres pg_isready -U internlink
-# OR: docker-compose exec postgres pg_isready -U internlink
-
-# Reset database
-docker compose down -v
-docker compose up -d
-# OR: docker-compose down -v && docker-compose up -d
-```
-
-**Memory issues:**
-```bash
-# Check container memory usage
-docker stats
-
-# Increase Docker memory limit
-# Docker Desktop: Settings > Resources > Memory
-```
-
-### Getting Help
-
-1. Check the logs: `docker compose logs -f` (or `docker-compose logs -f`)
-2. Verify environment variables: `docker compose exec app env` (or `docker-compose exec app env`)
-3. Test database connection: `docker compose exec app php artisan tinker` (or `docker-compose exec app php artisan tinker`)
-4. Check Laravel configuration: `docker compose exec app php artisan config:show` (or `docker-compose exec app php artisan config:show`)
-
-## 📚 Additional Resources
-
-- [Docker Documentation](https://docs.docker.com/)
-- [Docker Compose Documentation](https://docs.docker.com/compose/)
-- [Laravel Documentation](https://laravel.com/docs)
-- [PostgreSQL Documentation](https://www.postgresql.org/docs/)
-
-## 🤝 Contributing
-
-When contributing to the Docker setup:
-
-1. Test changes in development environment
-2. Update documentation
-3. Ensure backward compatibility
-4. Test production deployment
-5. Update version tags appropriately
-
----
-
-**Note**: This Docker setup is optimized for InternLink's specific requirements including PostgreSQL, Redis caching, queue workers, and PDF generation capabilities.
+Changes to `.env` require restarting the affected containers (`docker compose up -d` will recreate them).
+
+## Troubleshooting
+- **Port already in use** – adjust `APP_PORT`, `DB_PORT`, or `VITE_PORT` in `.env` and rerun `docker compose up -d`.
+- **Permission denied** – rerun `./docker-scripts/linux/setup.sh` or execute `docker compose exec app bash` followed by `chown -R www-data:www-data storage bootstrap/cache`.
+- **Database not reachable** – confirm containers are running (`docker compose ps`) and check logs (`docker compose logs postgres`).
+- **Node service stops immediately** – start it with the development profile (`docker compose --profile development up -d node`).
+- **Redis authentication failures** – ensure `REDIS_PASSWORD` in `.env` matches the password defined in `docker-compose.yml`.
+
+## Production Notes
+- Use the production compose definition: `docker compose -f docker-compose.prod.yml up -d`.
+- Set strong secrets in `.env` (`APP_KEY`, database, Redis, and queue credentials`).
+- Configure SSL/TLS at the edge or by extending the production build to include your reverse proxy.
+- Schedule regular database backups with `pg_dump` (see `docker/postgres/backup`).
+- Monitor container health with `docker compose ps` and forward logs to your observability stack.
+
+For deeper context on individual services and security considerations, review the files under `docker/` and `agents/security.md`.
