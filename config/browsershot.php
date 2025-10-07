@@ -25,6 +25,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Chrome Library Path
+    |--------------------------------------------------------------------------
+    |
+    | Some headless Chrome builds depend on shared libraries that may not be
+    | available globally. Point this to a directory that contains libasound
+    | and other required libraries when running inside a constrained
+    | environment.
+    |
+    */
+    'library_path' => env('BROWSERSHOT_LIBRARY_PATH', null),
+
+    /*
+    |--------------------------------------------------------------------------
     | Default Chrome Arguments
     |--------------------------------------------------------------------------
     |

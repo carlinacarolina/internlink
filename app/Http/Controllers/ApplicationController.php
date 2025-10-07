@@ -693,10 +693,20 @@ class ApplicationController extends Controller
         // Set Chrome arguments from configuration
         $args = config('browsershot.default_args', ['--no-sandbox', '--disable-setuid-sandbox']);
         $browsershot->setOption('args', $args);
-        
+
+        if ($libraryPath = $this->getChromeLibraryPath()) {
+            $existingLibraryPath = getenv('LD_LIBRARY_PATH') ?: '';
+            $mergedLibraryPath = $libraryPath . ($existingLibraryPath ? PATH_SEPARATOR . $existingLibraryPath : '');
+
+            putenv('LD_LIBRARY_PATH=' . $mergedLibraryPath);
+            $browsershot->setEnvironmentOptions([
+                'LD_LIBRARY_PATH' => $mergedLibraryPath,
+            ]);
+        }
+
         return $browsershot->pdf();
     }
-    
+
     private function getChromePath(): ?string
     {
         // First, check if a specific path is configured
@@ -736,6 +746,23 @@ class ApplicationController extends Controller
         }
         
         return null;
+    }
+
+    private function getChromeLibraryPath(): ?string
+    {
+        $configuredPath = config('browsershot.library_path');
+        if ($configuredPath && is_dir($configuredPath)) {
+            return $configuredPath;
+        }
+
+        $homeDirectory = getenv('HOME') ?: ($_SERVER['HOME'] ?? null);
+        if (! $homeDirectory) {
+            return null;
+        }
+
+        $libraryPath = rtrim($homeDirectory, '\/').'/'.'.local/libasound/usr/lib/x86_64-linux-gnu';
+
+        return is_dir($libraryPath) ? $libraryPath : null;
     }
 
     private function pdfFileName(object $application): string
