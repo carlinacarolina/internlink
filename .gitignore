@@ -21,9 +21,7 @@
 /storage/*.key
 /storage/pail
 /vendor
-/agents
 Homestead.json
 Homestead.yaml
 Thumbs.db
 setup_script.sh
-AGENTS.md
